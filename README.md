@@ -1,4 +1,4 @@
-# DarkShield
+# Dark-Shield
 
 Base inicial del proyecto: dos aplicaciones TypeScript en un repositorio con npm
 workspaces. La web utiliza Next.js (interfaz React y backend HTTP); la extensión,
@@ -99,5 +99,5 @@ configurar las pruebas y su cobertura e incorporarlas a CI. El objetivo del 80 %
 la DoD debe medirse sobre código funcional, con su alcance declarado. Estas
 comprobaciones de arranque no dan por terminada ninguna HU.
 
-Consultar [la decisión de arquitectura](docs/arquitectura.md) para el mapa de HU,
+Consultar [la decisión de arquitectura](docs/architecture.md) para el mapa de HU,
 las dependencias del Sprint 1 y las discrepancias encontradas en las fuentes.
