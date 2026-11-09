@@ -1,6 +1,0 @@
-{
-  "name": "Dark-Shield",
-  "description": "Plataforma comunitaria y extensión web para la detección, reporte, validación y prevención de dark patterns.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

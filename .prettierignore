@@ -1,0 +1,8 @@
+node_modules/
+**/.next/
+**/.wxt/
+**/.output/
+**/next-env.d.ts
+coverage/
+package-lock.json
+tmp/

@@ -1,2 +1,2 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Mantener los finales de línea del equipo y de CI consistentes.
+* text=auto eol=lf

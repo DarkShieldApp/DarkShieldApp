@@ -1,8 +1,24 @@
+# Dependencias y archivos generados
 node_modules/
-build/
+.next/
+.wxt/
+.output/
 dist/
 coverage/
-.DS_Store
+*.tsbuildinfo
+next-env.d.ts
 *.log
-.env*
+
+# Configuración local y secretos
+.env
+.env.*
 !.env.example
+web-ext.config.ts
+.supabase/
+supabase/.temp/
+supabase/.branches/
+
+# Temporales y sistema operativo
+tmp/
+.DS_Store
+Thumbs.db
