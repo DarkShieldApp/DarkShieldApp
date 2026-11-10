@@ -2,10 +2,12 @@
 
 Base inicial del proyecto: dos aplicaciones TypeScript en un repositorio con npm
 workspaces. La web utiliza Next.js (interfaz React y backend HTTP); la extensión,
-WXT con React y Manifest V3. Supabase será la base de datos.
+WXT con React y Manifest V3. Supabase es la persistencia acordada y Supabase Auth
+el sistema de autenticación elegido.
 
 Este esqueleto solo muestra una página y un popup de arranque. No implementa ninguna
-HU, endpoint, autenticación, modelo de datos, consulta, alerta ni integración con IA.
+HU, endpoint, autenticación de usuarios, modelo de datos, consulta, alerta ni integración con IA.
+Incluye factorías Supabase sin estado, diagnóstico manual de Auth y pruebas unitarias.
 No necesita credenciales ni un proyecto Supabase para arrancar.
 
 ## Estructura
@@ -16,14 +18,16 @@ DarkShieldApp/
 │   └── src/
 │       ├── app/             # Páginas y layouts de Next.js
 │       │   └── api/         # Lugar para los futuros endpoints
-│       └── server/          # Lugar para negocio e integraciones del servidor
+│       ├── lib/supabase/    # Configuración y cliente de navegador
+│       └── server/          # Cliente Supabase exclusivo del servidor
 ├── extension/
 │   ├── src/entrypoints/popup/
 │   └── wxt.config.ts       # WXT genera el manifest al compilar
 ├── supabase/
+│   ├── config.toml         # Instancia local aislada mediante CLI
 │   └── migrations/         # Reserva para futuros cambios SQL
 ├── docs/
-│   └── arquitectura.md     # Análisis de las seis fuentes y decisión inicial
+│   └── architecture.md     # Arquitectura y decisiones iniciales
 ├── .github/workflows/ci.yml
 ├── package.json
 └── package-lock.json       # Un único lockfile para todo el equipo
@@ -72,6 +76,12 @@ otros navegadores requerirán su propia comprobación de compatibilidad.
 | `npm run typecheck`       | Generar tipos del framework y comprobar TypeScript |
 | `npm run format`          | Formatear código y documentación                   |
 | `npm run check`           | Formato, lint, tipos y compilación                 |
+| `npm test`                | Pruebas unitarias, sin modo interactivo            |
+| `npm run test:coverage`   | Pruebas e informes V8, umbral del 80 % por archivo |
+| `npm run supabase:check`  | Diagnóstico remoto de Auth usando `web/.env`       |
+| `npm run supabase:start`  | Iniciar Supabase local (requiere Docker)           |
+| `npm run supabase:stop`   | Detener Supabase local conservando los datos       |
+| `npm run supabase:status` | Consultar el estado de la instancia local          |
 
 Tras compilar la web, `npm run start --workspace @darkshield/web` arranca su servidor
 de producción. No desplegarla como una exportación estática cuando incorpore API.
@@ -82,22 +92,27 @@ y usar `npm ci` para reproducir la instalación. No crear lockfiles en cada apli
 
 ## Configuración y próximos trabajos
 
-Las plantillas `web/.env.example` y `extension/.env.example` documentan las futuras
-variables; todavía no se consumen. Cuando haga falta, copiarlas a `.env.local` en
-su mismo directorio. Los archivos locales están excluidos de Git.
+Copiar `web/.env.example` a `web/.env` solo si este último no existe. Completar
+`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` desde el proyecto
+Supabase creado manualmente. Usar una clave `sb_publishable_...`, nunca una clave
+privilegiada. El archivo local está excluido de Git; no sobrescribirlo al actualizar.
+La plantilla de la extensión sigue siendo futura: la extensión accederá a la API web.
 
 La preparación de Supabase se explica en [supabase/README.md](supabase/README.md).
-No se han creado recursos remotos ni instalado SDKs que todavía no se utilizan.
+Las factorías validan las variables al invocarse. La página inicial y su build siguen
+funcionando sin configuración. Next.js fija los valores públicos del navegador en
+el build: para usar el cliente en un despliegue futuro, configurar y recompilar.
 
-La CI inicial ejecuta `npm ci` y `npm run check` en las PR dirigidas a `main` y en
-los cambios de `main`. No despliega ni requiere secretos. El workflow se activará
-cuando el equipo suba estos archivos a GitHub.
+La CI en `.github/workflows/ci.yml` ejecuta `npm ci`, `npm run check` y
+`npm run test:coverage` con Node.js 24 y npm 12.2.1 en PR dirigidas a `main` y push
+a `main`. No despliega, no necesita secretos y no accede al Supabase remoto.
+Su ejecución en GitHub quedará pendiente hasta que el equipo publique los cambios.
 
-**Pruebas funcionales y cobertura: no disponibles.** No se han añadido tests de
-pantallas vacías ni un comando de tests que simule éxito. Al comenzar la primera HU,
-configurar las pruebas y su cobertura e incorporarlas a CI. El objetivo del 80 % de
-la DoD debe medirse sobre código funcional, con su alcance declarado. Estas
-comprobaciones de arranque no dan por terminada ninguna HU.
+Las pruebas cubren configuración, inicialización sin sesiones y diagnóstico de Auth.
+El informe HTML se genera en `web/coverage/index.html`; el alcance y la ampliación
+a futuras HU y a la extensión se detallan en [desarrollo](docs/development.md).
+No hay todavía pruebas funcionales de historias, tablas de dominio, migraciones ni
+RLS. Esta preparación es transversal: **no completa HU-14/T1 ni HU-11**.
 
 Consultar [la decisión de arquitectura](docs/architecture.md) para el mapa de HU,
 las dependencias del Sprint 1 y las discrepancias encontradas en las fuentes.

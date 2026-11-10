@@ -1,6 +1,6 @@
 # Arquitectura de DarkShield
 
-> Estado: arquitectura inicial del proyecto, adoptada para el esqueleto del 9 de noviembre de 2026. Las integraciones descritas como futuras todavía no están implementadas.
+> Estado: arquitectura inicial del 9 de noviembre, con preparación transversal de Supabase y CI del 10 de noviembre de 2026. No se han implementado historias de usuario.
 
 ## Visión general
 
@@ -8,12 +8,12 @@ DarkShield será una plataforma colaborativa para consultar y reportar posibles 
 
 La solución prevista conserva los componentes lógicos del ConOps: plataforma web, extensión del navegador, servidor, persistencia y apoyo de IA. Para el arranque se ha elegido una estructura sencilla: **dos aplicaciones dentro de un único repositorio** y un servicio gestionado de datos.
 
-| Componente                   | Tecnología elegida                       | Función                                                          |
-| ---------------------------- | ---------------------------------------- | ---------------------------------------------------------------- |
-| Web y servidor HTTP (`web/`) | Next.js, React y TypeScript              | Interfaz web, futuros endpoints y lógica del servidor            |
-| Extensión (`extension/`)     | WXT, React, TypeScript y Manifest V3     | Cliente de navegador; actualmente solo dispone del popup inicial |
-| Persistencia (`supabase/`)   | Supabase / PostgreSQL                    | Futuras tablas y migraciones SQL; servicio aún sin configurar    |
-| IA auxiliar                  | Sin implementación ni proveedor decidido | Análisis y estructuración de reportes cuando se aborden sus HU   |
+| Componente                   | Tecnología elegida                       | Función                                                                 |
+| ---------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| Web y servidor HTTP (`web/`) | Next.js, React y TypeScript              | Interfaz web, futuros endpoints y lógica del servidor                   |
+| Extensión (`extension/`)     | WXT, React, TypeScript y Manifest V3     | Cliente de navegador; actualmente solo dispone del popup inicial        |
+| Persistencia (`supabase/`)   | Supabase / PostgreSQL y Supabase Auth    | CLI local y SDK preparados; tablas, RLS y acceso de usuarios pendientes |
+| IA auxiliar                  | Sin implementación ni proveedor decidido | Análisis y estructuración de reportes cuando se aborden sus HU          |
 
 Esta separación **no implica dos microservicios**: la extensión es un cliente instalado en el navegador y la web reúne la interfaz y el backend en una misma aplicación. Supabase es una dependencia externa gestionada. Las razones y alternativas de las elecciones están en los [registros de decisiones](#decisiones-arquitectónicas).
 
@@ -34,7 +34,8 @@ flowchart LR
 ### Responsabilidades
 
 - **`web/src/app/`**: páginas, layouts y futuros _Route Handlers_ en `web/src/app/api/`. Las operaciones compartidas por web y extensión deberán tener un contrato HTTP claro.
-- **`web/src/server/`**: lugar reservado para autorización, reglas del dominio y acceso a datos o servicios externos. El cliente no debe ser la autoridad sobre roles, permisos, credibilidad o confianza.
+- **`web/src/server/`**: contiene la factoría Supabase marcada con `server-only`; albergará autorización y reglas del dominio. El cliente no debe ser la autoridad sobre roles, permisos, credibilidad o confianza.
+- **`web/src/lib/supabase/`**: validación compartida y factoría de navegador marcada con `client-only`. Se valida al crear cada cliente, sin instancias globales ni acceso a red en la importación. Ambas factorías usan únicamente la clave publicable y desactivan persistencia, renovación y detección de sesiones en URL.
 - **`extension/src/entrypoints/`**: hoy contiene el popup. Un _background/service worker_ y los permisos necesarios se estudiarán cuando se implementen HU-17 o HU-03. No existen actualmente consultas ni alertas reales.
 - **`supabase/migrations/`**: carpeta preparada para versionar cambios de esquema y políticas de acceso. Todavía no hay tablas ni políticas.
 
@@ -43,12 +44,19 @@ Cuando ambos clientes necesiten reutilizar un contrato, se podrá incorporar `pa
 ## Límites de integración y seguridad
 
 - El servidor concentrará las operaciones de negocio que requieran autorización, cálculo de confianza/credibilidad, moderación, control de abuso o coordinación con la IA.
-- Si se adopta Supabase Auth, habrá que decidir cómo se gestionan las sesiones en web y extensión. También siguen pendientes CORS, contratos HTTP, permisos de origen, acceso a evidencias y políticas RLS.
+- Supabase Auth está adoptado. HU-11 resolverá sesiones en web y extensión, cookies SSR, verificación de identidad y renovación. No hay proxy de autenticación ni rutas protegidas. También siguen pendientes CORS, contratos HTTP, permisos de origen, acceso a evidencias y políticas RLS.
 - No se colocarán claves privilegiadas de Supabase ni secretos de IA en el navegador, la extensión o variables expuestas al cliente. Las comprobaciones de permisos se harán en el servidor y, donde proceda, también en la base de datos.
 - La extensión no tiene actualmente `host_permissions` ni `content_scripts` en su versión de producción. Consultar la pestaña mediante una acción del usuario y observar la navegación en segundo plano presentan requisitos de permisos distintos; no se habilitará acceso global sin una necesidad justificada.
 - Los reportes son **alegaciones que deben evaluarse**, no confirmaciones automáticas. La credibilidad cambiará con nueva evidencia y participación; la IA es apoyo a la comunidad y a la moderación.
 
 ## Decisiones arquitectónicas
+
+La preparación utiliza `@supabase/supabase-js` sin estado. `@supabase/ssr` se
+incorporará en HU-11 junto con el flujo completo de cookies de App Router: su
+cliente de navegador persiste sesiones en cookies y no corresponde activarlo en
+esta intervención. No se utilizan los antiguos Auth Helpers. Las factorías no
+autentican peticiones ni ofrecen acceso autorizado a datos de usuario. Consultar
+los [ejemplos y límites](development.md#clientes-supabase).
 
 Las decisiones existentes se han extraído del antiguo `arquitectura.md` y separado por ámbito:
 

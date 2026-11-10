@@ -21,12 +21,19 @@
     "typecheck": "npm run typecheck --workspaces",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build",
+    "test": "npm run test --workspace @darkshield/web && npm run test --workspace @darkshield/extension --if-present",
+    "test:coverage": "npm run test:coverage --workspace @darkshield/web && npm run test:coverage --workspace @darkshield/extension --if-present",
+    "supabase:check": "npm run supabase:check --workspace @darkshield/web",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
     "eslint": "9.39.5",
     "prettier": "3.9.10",
+    "supabase": "3.1.0",
     "typescript": "5.9.3"
   }
 }

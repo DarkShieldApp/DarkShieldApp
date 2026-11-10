@@ -8,7 +8,106 @@ El repositorio tiene dos _workspaces_ npm: `web/` (`@darkshield/web`) y `extensi
 
 Para instalar dependencias se usa `npm ci`. Los comandos principales son `npm run dev:web`, `npm run dev:extension` y `npm run check` (formato, lint, tipos y compilación). Al instalar una dependencia específica de una aplicación, usar su _workspace_ y conservar el lockfile único.
 
-Las plantillas `web/.env.example` y `extension/.env.example` describen variables para integraciones futuras, pero el esqueleto todavía no las consume. Los secretos deben quedar fuera del control de versiones. Las variables `NEXT_PUBLIC_` y las empaquetadas en la extensión son visibles para el cliente; **no son un lugar para claves secretas**. La preparación de datos se desarrolla en [`supabase/README.md`](../supabase/README.md).
+La integración web consume `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+al crear un cliente. Copiar `web/.env.example` a `web/.env` únicamente si no existe;
+completarla desde el proyecto creado manualmente. La extensión no consume Supabase.
+Los archivos de entorno locales deben quedar fuera del control de versiones. Las
+variables `NEXT_PUBLIC_` son visibles para el cliente; **no son un lugar para claves
+secretas**. Next.js fija esos valores en el bundle al compilar: un futuro despliegue
+que utilice el cliente requiere configurarlos antes del build. La página inicial,
+las importaciones y las pruebas no requieren configuración real.
+
+### Clientes Supabase
+
+```ts
+// Dentro de un Client Component ("use client"), al necesitar el servicio:
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+// const supabase = createBrowserSupabaseClient();
+```
+
+```ts
+// Dentro de un Server Component, Route Handler o Server Action:
+import { createServerSupabaseClient } from '@/server/supabase';
+// const supabase = createServerSupabaseClient();
+```
+
+Invocar dentro de la función que realiza la operación, nunca en el nivel superior
+del módulo. Cada llamada valida las variables y crea una instancia independiente.
+`config.ts` exige un origen HTTPS (HTTP solo para loopback local), sin rutas,
+credenciales, consulta ni fragmento, y una clave de formato `sb_publishable_...`.
+Rechaza claves secretas y JWT heredados; no verifica criptográficamente la clave
+ni que corresponda al proyecto. Los errores identifican la variable sin mostrar
+su valor. No hay cliente privilegiado.
+
+`client-only` y `server-only` delimitan los módulos para Next.js. Las factorías
+usan `@supabase/supabase-js` con `persistSession`, `autoRefreshToken` y
+`detectSessionInUrl` desactivados. No transportan identidad del usuario ni leen
+cookies: no deben usarse como autorización. HU-11 sustituirá esta preparación
+sin estado por las utilidades de `@supabase/ssr` para App Router y resolverá el
+flujo completo de cookies, validación y renovación. El
+[cliente SSR de Supabase](https://github.com/supabase/ssr/blob/main/src/createBrowserClient.ts)
+persiste sesiones mediante cookies; por eso no se instala anticipadamente.
+No hay Auth Helpers ni `proxy.ts`. La extensión seguirá utilizando la API web.
+
+### Diagnóstico manual de conectividad
+
+Desde la raíz: `npm run supabase:check`. Node.js 24 carga explícitamente `web/.env`
+con `loadEnvFile`, usando una ruta relativa al script. Las variables ya exportadas
+en el proceso tienen prioridad; `.env.local` no se carga en este comando. No se
+modifica ningún archivo de entorno. No se ejecuta en tests, build ni CI.
+
+Realiza un único `GET /auth/v1/health` con la clave publicable en la cabecera
+`apikey`, timeout de diez segundos y redirecciones deshabilitadas. Comprueba
+HTTP satisfactorio y JSON identificando GoTrue con versión. Distingue errores de
+configuración/acceso, red, estado HTTP y contenido inesperado; falla con salida
+no cero. No muestra URL, claves, cuerpo remoto ni excepciones sin filtrar.
+No crea usuarios, sesiones ni registros. **Solo demuestra que Auth responde**;
+no acredita conexión SQL, tablas, RLS ni flujos de autenticación.
+El endpoint está descrito en la
+[documentación oficial de diagnóstico](https://supabase.com/kb/troubleshooting/how-do-i-check-gotrueapi-version-of-a-supabase-project-lQAnOR).
+
+### Pruebas y cobertura
+
+Ejecutar desde la raíz:
+
+```sh
+npm test
+npm run test:coverage
+```
+
+El workspace web ofrece los mismos scripts (`npm run test --workspace @darkshield/web`).
+Vitest 5.1.0 ejecuta en modo no interactivo con entorno Node; ninguna prueba usa
+credenciales reales. Se prueban la validación, las factorías con el SDK real
+(observando sus argumentos), la ausencia de red/sesiones al inicializar y el
+diagnóstico con respuestas HTTP controladas. Solo los marcadores de Next.js se
+sustituyen por módulos vacíos en las pruebas de clientes, porque Vitest no es el
+compilador de Next.js.
+
+La cobertura V8 incluye **todos los `.ts` de `web/src/lib/`, `web/src/server/` y
+`web/scripts/lib/`**, también si no los importa ninguna prueba; excluye únicamente
+declaraciones `.d.ts` dentro de ese ámbito. Actualmente son:
+
+- `src/lib/supabase/config.ts`: validación y lectura diferida del entorno.
+- `src/lib/supabase/client.ts`: factoría del navegador.
+- `src/server/supabase.ts`: factoría del servidor.
+- `scripts/lib/auth-health.ts`: petición y clasificación del diagnóstico.
+
+Se exige **80 % por archivo en líneas, sentencias, ramas y funciones**; una cifra
+inferior falla. Los tests, configuraciones, documentación, pantallas de arranque
+y el lanzador de consola `scripts/check-supabase.ts` quedan fuera del ámbito; este
+último carga el archivo, llama a código medido y establece la salida del proceso.
+No se atribuye esta cobertura al producto completo ni a historias no implementadas.
+Informes ignorados por Git: `web/coverage/index.html`, `lcov.info` y
+`coverage-summary.json`. Una suite web sin pruebas falla; no se usa `passWithNoTests`.
+
+Los comandos raíz ejecutan obligatoriamente web y después los scripts de extensión
+cuando existan (`--if-present` solo en extensión). Al incorporar comportamiento
+a la extensión, añadir allí Vitest, scripts `test` y `test:coverage`, pruebas y
+umbrales equivalentes; los fallos se propagarán a la raíz. Al introducir rutas,
+componentes funcionales o módulos `.tsx`, ampliar expresamente el ámbito de
+cobertura y añadir las pruebas correspondientes. No mover ni excluir negocio
+para eludir el umbral. Esta regla concreta el objetivo de la DoD para la
+infraestructura actual y deberá revisarse con cada ampliación funcional.
 
 ## Flujo de trabajo y calidad
 
@@ -22,13 +121,44 @@ Las plantillas `web/.env.example` y `extension/.env.example` describen variables
 
 La documentación del esqueleto original dejó registradas estas verificaciones locales (Node.js 24.15.0 y npm 12.2.1): instalación, `npm run check`, respuesta HTTP 200 de la web de arranque, compilación de la extensión Manifest V3 sin permisos de producción y `git diff --check`. **No** se había instalado y probado manualmente la extensión en un navegador ni comprobado ninguna HU o integración real.
 
-**A fecha 9/11/2026, en la rama `main` de GitHub, `.github/workflows/` contiene únicamente `.gitkeep`.** Aunque el README describe una CI inicial, no se ha encontrado `ci.yml` en la rama consultada. La configuración y ejecución de la CI deben verificarse cuando se suba el workflow. En todo caso, `npm run check` no ejecuta aún pruebas funcionales ni calcula cobertura.
+La preparación del 10/11/2026 incorpora `.github/workflows/ci.yml`: en push a `main`
+y PR dirigidas a `main`, ejecuta `npm ci`, `npm run check` y `npm run test:coverage`
+con Node.js 24 y npm 12.2.1. Tiene permisos `contents: read`, caché npm y acciones
+oficiales fijadas por SHA (checkout 7.0.1 y setup-node 7.1.0, verificadas en sus
+repositorios). No utiliza secretos, diagnósticos remotos, despliegues ni tolerancia
+a fallos. Una ejecución real en GitHub solo se podrá comprobar tras publicar.
 
-El proyecto arranca sin credenciales de Supabase. No hay todavía esquema, autenticación, conexión a datos, alertas, análisis de IA ni una medida de cobertura disponible.
+`npm run check` conserva formato, lint, tipos y compilación de ambas aplicaciones;
+las pruebas y cobertura son el paso adicional obligatorio de CI. La instancia
+local y la futura ampliación SQL/RLS se explican en [Supabase](../supabase/README.md).
+No hay todavía esquema de aplicación, sesiones, alertas ni análisis de IA.
+
+Validación local de esta preparación (10/11/2026, Node.js 24.15.0 y npm 12.2.1):
+
+- `npm ci` y `npm run check` completados. El segundo se ejecutó con ambas
+  variables Supabase vacías, comprobando que Next.js no las reemplazaba con las
+  de `web/.env`; compilaron web y extensión.
+- `npm test` y `npm run test:coverage`: 54 pruebas correctas; 100 % de líneas,
+  sentencias, funciones y ramas en los cuatro archivos declarados. No es
+  cobertura del producto completo.
+- Una selección sin tests devolvió código 1. Una ejecución parcial de cobertura
+  incluyó los módulos no importados con 0 % y falló por el umbral del 80 %.
+- `actionlint` 1.7.12 validó el workflow; `git diff --check` no encontró errores.
+- El diagnóstico real de Auth respondió HTTP 200. No se probó PostgreSQL:
+  `supabase start` falló porque el motor Docker no estaba disponible.
+- Se comprobó que `web/.env` seguía ignorado y sin cambios, la plantilla seguía
+  versionada, había un único lockfile y no se habían copiado valores locales a
+  archivos versionados o nuevos para revisión. No se ejecutó CI en GitHub.
 
 ### Dependencias de herramientas
 
 Las versiones exactas se encuentran en los `package.json` y el lockfile; en el esqueleto se fijaron TypeScript 5.9.3 y ESLint 9.39.5 para mantener la compatibilidad con la cadena de plugins utilizada. La auditoría inicial consignó ocho avisos moderados en dependencias de desarrollo relacionados con `minimatch`, y ninguno en la ejecución realizada con `npm audit --omit=dev`. No se ejecutó `npm audit fix --force` porque proponía retrocesos incompatibles. **Estos resultados son históricos, no una auditoría nueva ni una garantía de seguridad.** Revisar [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) y compatibilidad con ESLint 10 en las futuras actualizaciones.
+
+En la validación del 10/11/2026, `npm audit` informa de siete avisos moderados
+en la cadena `typescript-eslint` / `minimatch`, y `npm audit --omit=dev` de cero.
+La instalación también avisa de que ESLint 9.39.5 ya no recibe soporte. No se
+han forzado actualizaciones incompatibles con los plugins existentes; queda
+pendiente revisar esa cadena de herramientas.
 
 ## Sprint 1: mapa de implementación
 

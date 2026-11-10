@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Comunicar un error reproducible
-title: "[Bug]: "
+title: '[Bug]: '
 labels: [bug]
 ---
 
