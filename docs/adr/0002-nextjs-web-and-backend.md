@@ -17,6 +17,6 @@ Usar **Next.js con App Router, React y TypeScript** en `web/` para la interfaz y
 - **Usar Supabase como única API de negocio para todos los clientes:** no es adecuado como planteamiento general para toda la lógica de confianza, valoración, moderación, límites de abuso e IA descrita en el ConOps.
 - **Crear un servicio independiente de IA desde el principio:** sería prematuro sin necesidades de carga, colas o aislamiento confirmadas.
 
-Se aceptan las convenciones y dependencia de Next.js a cambio de reducir la configuración propia. **No hay todavía endpoints ni funcionalidades del dominio implementados**. La extensión deberá comunicarse por contratos HTTP acordados; autenticación, CORS y sesiones siguen pendientes.
+Se aceptan las convenciones y dependencia de Next.js a cambio de reducir la configuración propia. **No hay todavía endpoints ni operaciones de negocio en Next.js**. HU-14/T1 incorpora el perfil persistente en PostgreSQL y su tipo TypeScript de servidor. La extensión deberá comunicarse por contratos HTTP acordados; autenticación, CORS y sesiones siguen pendientes.
 
 **Referencia:** [arquitectura general](../architecture.md).

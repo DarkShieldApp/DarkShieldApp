@@ -32,3 +32,35 @@ jobs:
         run: npm run check
       - name: Pruebas y cobertura
         run: npm run test:coverage
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: npm compatible y reproducible
+        run: npm install --global npm@12.2.1
+      - name: Instalar dependencias y CLI fijada en el lockfile
+        run: npm ci
+      - name: Comprobar que existen migraciones y pruebas SQL
+        run: |
+          test -n "$(find supabase/migrations -name '*.sql' -print -quit)"
+          test -n "$(find supabase/tests -name '*.test.sql' -print -quit)"
+      - name: Iniciar Supabase local y aplicar migraciones
+        # Fresh runner: start applies every migration to a new PostgreSQL 17 DB.
+        # Avoid logging even the disposable local API keys printed by start.
+        run: npx --no-install supabase start --exclude studio,postgres-meta,mailpit > "$RUNNER_TEMP/supabase-start.log" 2>&1
+      - name: Pruebas PostgreSQL y RLS
+        run: npm run test:db
+      - name: Detener Supabase local
+        if: always()
+        run: npx --no-install supabase stop
