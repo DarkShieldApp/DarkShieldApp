@@ -1,7 +1,7 @@
 # ADR-004 — Persistencia con Supabase
 
 - **Fecha:** 9 de noviembre de 2026.
-- **Estado:** Supabase y Supabase Auth adoptados; preparación del SDK y CLI el 10 de noviembre de 2026. Diseño de datos y flujos de autenticación pendientes.
+- **Estado:** Supabase y Supabase Auth adoptados; SDK, CLI y perfil de usuario HU-14/T1 implementados el 10 de noviembre de 2026. Los flujos de autenticación y las restantes entidades siguen pendientes.
 
 ## Contexto
 
@@ -13,13 +13,30 @@ Usar **Supabase / PostgreSQL** para la persistencia y reservar `supabase/migrati
 
 La lógica de negocio se centralizará en el servidor web. Al crear tablas expuestas se deberán diseñar las políticas RLS correspondientes, además de autorizar operaciones en los puntos adecuados. Las credenciales con privilegios y los secretos no estarán accesibles desde la extensión o el frontend.
 
+HU-14/T1 separa `auth.users` (identidad) y `public.profiles` (dominio) mediante el
+mismo UUID. Un trigger privado crea el perfil; la migración cubre identidades
+preexistentes. `ON DELETE RESTRICT` protege frente a borrados accidentales en
+cascada; la desactivación es lógica mediante `is_active`. Una eventual eliminación
+legal o anonimización exige un procedimiento específico que considere todas las
+referencias y los datos de Auth, fuera del alcance de T1.
+
+La API solo concede lectura del perfil propio activo mediante grants explícitos
+y RLS. No hay escritura pública ni operaciones administrativas. La función del
+trigger de Auth usa privilegios del propietario porque Auth no puede insertar
+perfiles directamente: esquema `private` no expuesto, `search_path` vacío,
+referencias cualificadas y ejecución pública revocada. Las pruebas pgTAP verifican
+permisos y políticas con roles reales, en PostgreSQL local y en un job de CI
+independiente. No se despliega automáticamente al proyecto compartido.
+
 ## Consecuencias y asuntos abiertos
 
-- Acordar esquema, identificadores, relaciones, migraciones y políticas de acceso al desarrollar las HU; no anticipar un modelo de entidades ficticio.
+- El perfil tiene su esquema, migración y política inicial. Acordar las restantes entidades, relaciones y políticas al desarrollar sus HU.
 - Definir sesiones, acceso autorizado y denegado, buckets y tamaño/formato de evidencias cuando se necesiten.
 - Las claves publicables **no** sustituyen RLS; las claves secretas o de `service_role` tienen privilegios especiales y deben permanecer bajo control del servidor.
 - El plan Free puede facilitar el arranque, pero sus límites de capacidad, transferencia, almacenamiento o inactividad deberán revisarse antes de dimensionar. El proyecto remoto se crea manualmente y su configuración pública se mantiene en `web/.env`, fuera de Git; esta preparación no modifica su esquema.
 - La confianza y credibilidad son reglas propias de DarkShield; PostgreSQL no las calcula automáticamente.
+- `trust_level` almacena un entero 1–100, inicialmente 1. Los futuros puntos de escritura deben rechazar decimales antes de convertir a `SMALLINT`, ya que PostgreSQL puede redondear expresiones numéricas antes del CHECK.
+- `is_active` no revoca sesiones ni extiende automáticamente la protección a otras tablas. HU-11 y permisos deberán integrar esas comprobaciones en cada operación.
 
 No se ha decidido incorporar ORM ni un servicio de almacenamiento diferente. Se reconsiderarán alternativas si el desarrollo aporta una necesidad concreta.
 

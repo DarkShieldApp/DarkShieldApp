@@ -1,80 +1,151 @@
 # Supabase
 
-Supabase / PostgreSQL y Supabase Auth son las tecnologías adoptadas. Esta
-preparación transversal aporta factorías web sin estado, diagnóstico manual de
-Auth y CLI reproducible. No implementa HU-14/T1 ni HU-11, tablas de aplicación,
-políticas RLS, registro, login, logout o sesiones.
+Supabase/PostgreSQL y Supabase Auth son las tecnologías adoptadas. HU-14/T1
+incorpora `public.profiles`, su primera migración, triggers, RLS y pruebas reales.
+Las factorías web siguen sin estado. Registro, login, logout, cookies y sesiones
+pertenecen a HU-11 y todavía no están implementados.
 
 ## Proyecto remoto y diagnóstico
 
-El proyecto remoto se crea manualmente. Su URL y clave publicable se guardan en
-`web/.env`, partiendo de `web/.env.example` sin sobrescribir un archivo existente.
-No se usan claves administrativas, contraseñas PostgreSQL ni credenciales en Git.
-Las claves públicas no sustituyen autorización ni políticas RLS.
+La URL y clave publicable del proyecto compartido se guardan en `web/.env`,
+partiendo de `web/.env.example` sin sobrescribir un archivo existente. No se usan
+claves administrativas ni contraseñas remotas en código o Git.
 
-Desde la raíz, `npm run supabase:check` carga explícitamente `web/.env` y hace un
-GET de solo lectura a `/auth/v1/health`. Un resultado correcto únicamente acredita
-la disponibilidad del servicio Auth; no prueba PostgreSQL ni el modelo de datos.
-No crea usuarios ni sesiones. Nunca se ejecuta automáticamente en CI o build.
-Los detalles, errores y límites están en [desarrollo](../docs/development.md).
+`npm run supabase:check` carga explícitamente `web/.env` y consulta solo
+`/auth/v1/health`. Su resultado demuestra disponibilidad de Auth, no el modelo ni
+RLS. No crea usuarios ni sesiones y no se ejecuta en CI o build.
 
-## Instancia local aislada
+La migración de T1 está versionada para revisión y validación local; no se ha
+aplicado al proyecto remoto compartido. El remoto utiliza PostgreSQL 17.
 
-`supabase` 3.1.0 es una dependencia de desarrollo de la raíz, fijada en el lockfile.
-`config.toml` se inicializó con esa CLI y se redujo a los servicios necesarios:
-PostgreSQL, API, Auth, Studio y correo local. Storage, Realtime, Edge Functions y
-Analytics están desactivados. No hay seeds ni migraciones de aplicación.
-El registro local está deshabilitado hasta diseñar HU-11.
+## Instancia local y migraciones
 
-Requisitos: Node.js 24, npm 11 o 12, Docker con motor Linux activo y puertos
-54320–54324 disponibles. Ejecutar desde la raíz:
+Supabase CLI 3.1.0 es una dependencia fijada en el lockfile. La configuración
+local usa PostgreSQL 17, API, Auth, Studio y correo local. Storage, Realtime,
+Edge Functions y Analytics están desactivados, al igual que el registro público.
+No hay seeds. La CLI v3 usa el entorno local por defecto; los comandos de esta
+sección no llevan `--remote` y no necesitan login ni enlazar el proyecto remoto.
+
+Requisitos: Node.js 24, npm 11 o 12, Docker con motor Linux y puertos 54320–54324
+libres. Ejecutar desde la raíz:
 
 ```sh
 npm ci
 npm run supabase:start
-npm run supabase:status
+npm exec -- supabase migration up
+npm exec -- supabase migration list
+npm run test:db
 npm run supabase:stop
 ```
 
-La CLI descarga imágenes la primera vez. `start` trabaja únicamente con servicios
-locales del proyecto `darkshield`; no necesita login ni enlazar un proyecto remoto.
-La API local usa `http://127.0.0.1:54321`, PostgreSQL el puerto 54322 y Studio el 54323. `stop` conserva los datos locales; no usar opciones de borrado para el
-trabajo ordinario. La CLI puede mostrar claves y cadenas de conexión locales en
-su salida: no copiar esa salida a Git, incidencias o logs compartidos. Tampoco
-exportar sus claves privilegiadas a variables `NEXT_PUBLIC_`.
+En una instancia nueva, `start` inicializa el esquema de Supabase y aplica las
+migraciones del repositorio. Si ya existe una instancia con datos, `migration up`
+aplica únicamente las pendientes. No utilizar `db reset` sobre datos que deban
+conservarse. `stop` conserva los volúmenes; no usar `--no-backup` ni `--all` para
+el trabajo ordinario.
 
-PostgreSQL 17 es el valor local de partida de la CLI. Antes de la primera migración,
-confirmar la versión mayor del remoto y alinear esta configuración si corresponde.
-La configuración local no altera la configuración del proyecto remoto. No se ha
-ejecutado `link`, `db push`, `db pull`, `db reset` ni cambios de esquema remotos.
+La CLI descarga imágenes la primera vez. La API local está en
+`http://127.0.0.1:54321`, PostgreSQL en 54322 y Studio en 54323. `start` y `status`
+pueden imprimir claves locales: no copiar su salida a Git, incidencias ni logs
+compartidos. Tampoco exportar claves privilegiadas a `NEXT_PUBLIC_`.
 
-En la preparación del 10/11/2026 el motor Docker no estaba disponible. Se verificó
-la versión de CLI y se generó su configuración; `supabase start` falló al conectar
-con el motor Docker. Por tanto, **no se ha probado una
-instancia PostgreSQL local ni SQL/RLS**. La web y las pruebas unitarias funcionan
-sin Docker.
+Para reproducir el job de CI sin servicios visuales ni correo:
 
-## Próximas migraciones y pruebas SQL/RLS
+```sh
+npm exec -- supabase start --exclude studio,postgres-meta,mailpit
+npm run test:db
+npm exec -- supabase stop
+```
 
-HU-14/T1 incorporará la primera migración de perfiles y sus políticas RLS en
-`migrations/`, conservando la identidad de Supabase Auth. No crear un segundo
-sistema de contraseñas. Las tablas expuestas deben incluir sus políticas en la
-misma migración y pruebas de acceso permitido y denegado.
+## Migración de perfiles
 
-Cuando existan esas migraciones, ampliar CI con un job aislado de Supabase local
-sobre el Docker del runner: instalar con `npm ci`, iniciar los servicios locales,
-aplicar y verificar las migraciones locales, ejecutar `npm exec -- supabase test db`
-con pruebas pgTAP/SQL en `supabase/tests/` y detener los servicios incluso tras
-fallos. Verificar expresamente usuarios anónimos, propietarios y otros usuarios
-según el modelo acordado. Ese job no debe enlazarse al proyecto compartido ni
-utilizar sus secretos. Todavía no hay pruebas SQL que ejecutar ni se añade un
-paso vacío que aparente validarlas.
+`migrations/20261110154948_create_profiles.sql`, creada con `supabase migration
+new create_profiles`, define:
 
-HU-11 resolverá registro, acceso, cierre de sesión, cookies SSR, verificación de
-identidad, renovación y protección de rutas. La extensión utilizará la API web.
-Storage y políticas de evidencias se evaluarán en HU-06.
+- `public.profiles`, seis atributos y sus restricciones, con UUID compartido y FK
+  `ON DELETE RESTRICT` a `auth.users`.
+- `private.create_profile_for_auth_user()`, invocada después de insertar en Auth,
+  que crea un perfil con valores predeterminados sin copiar metadatos.
+- Backfill de las identidades existentes. El trigger se instala antes del backfill;
+  la PK y `ON CONFLICT (id) DO NOTHING` impiden duplicar perfiles.
+- `private.set_profile_updated_at()`, que preserva `created_at` y actualiza
+  `updated_at` solo cuando cambian los datos del perfil.
+- RLS explícita y permiso `SELECT` a `authenticated` limitado al perfil propio
+  activo. Sin escritura pública ni acceso anónimo o administrativo por API.
 
-Referencias: [CLI](https://supabase.com/docs/guides/local-development/cli/getting-started),
-[migraciones](https://supabase.com/docs/guides/deployment/database-migrations),
-[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security) y
-[pruebas de base de datos](https://supabase.com/docs/guides/local-development/testing/overview).
+La función de creación es `SECURITY DEFINER` para permitir que Auth cree el perfil
+sin concederle acceso general a la tabla. Ambas funciones tienen `search_path`
+vacío y ejecución pública revocada; `private` no figura en `api.schemas`. La
+función de fechas es `SECURITY INVOKER`. El trigger de Auth propaga errores y
+revierte la inserción de identidad si no puede crear su perfil.
+
+La migración revoca explícitamente los posibles grants por defecto, incluidos
+los de `service_role`, y concede solo lo necesario. No depende de que la exposición
+automática de tablas esté habilitada. Futuras migraciones deben conceder permisos
+y políticas de manera explícita y probarlos conjuntamente, sin habilitar RPC
+privilegiadas como atajo. Si se amplía `profiles`, revisar también qué cambios
+requieren actualizar la fecha y el tipo TypeScript.
+
+El [diseño de dominio](../docs/domain-design.md) describe atributos, límite de
+conversión de decimales a `SMALLINT`, desactivación, preservación de identidades y
+consecuencias de la FK ante necesidades excepcionales de eliminación. La política
+sobre perfiles no revoca sesiones ni protege futuras tablas y endpoints.
+
+## Pruebas PostgreSQL y RLS
+
+`npm run test:db` ejecuta `supabase test db` con pgTAP sobre la instancia local.
+La CLI prepara pgTAP; no se añaden dependencias al esquema de aplicación.
+
+- `profiles_model.test.sql`: columnas, restricciones, creación automática,
+  metadatos ignorados, valores límite, fechas, FK conservadora y rollback ante
+  un fallo de creación.
+- `profiles_rls.test.sql`: ACL de tabla/columnas, funciones privadas y consultas
+  como `anon` y `authenticated` con `SET LOCAL ROLE` y `request.jwt.claims`.
+  Comprueba identidad propia/ajena/ausente, cuenta inactiva y escrituras denegadas.
+  Con grants temporales comprueba además la protección independiente de RLS.
+- `profiles_backfill.test.sql`: reconstruye transaccionalmente el estado previo
+  a perfiles y reproduce el SQL exacto guardado por la CLI en
+  `supabase_migrations.schema_migrations`; prueba identidades preexistentes y
+  posteriores. No mantiene una copia paralela de la migración.
+
+Cada archivo usa `BEGIN`/`ROLLBACK`, UUID propios y un plan pgTAP; datos, DDL y
+grants temporales desaparecen al finalizar o abortar la conexión. Estas pruebas
+son exclusivamente para instancias locales aisladas: la prueba de backfill toma
+bloqueos DDL y no debe ejecutarse en un entorno compartido. Al introducir futuras
+relaciones, mantener esta prueba de transición o adaptarla para cubrir la nueva
+secuencia de migraciones. Los resultados SQL son independientes de la cobertura
+V8 de TypeScript.
+
+Comprobaciones adicionales locales:
+
+```sh
+npm exec -- supabase db lint --schema public,private --fail-on warning
+npm exec -- supabase db advisors --type security --fail-on error
+```
+
+Consultar `--help` al actualizar la CLI. La CLI 3 ya no necesita `--local` para
+estos comandos. No confundir un asesor del remoto sin migrar con la revisión del
+esquema local de T1.
+
+## Integración continua y despliegue posterior
+
+El job `database` de `.github/workflows/ci.yml` usa Node 24, npm 12.2.1 y la CLI del
+lockfile. Verifica que existen migraciones y pruebas, inicia Supabase en el Docker
+del runner con una base nueva, aplica las migraciones mediante `start` y ejecuta
+pgTAP. Un error de arranque, SQL o pruebas falla el job. `always()` detiene los
+servicios incluso tras fallos. La salida del arranque se guarda en un archivo
+temporal del runner para no publicar claves locales. No se conecta al remoto,
+no utiliza secretos ni oculta fallos con `continue-on-error`.
+
+El despliegue remoto se realizará posteriormente por el procedimiento acordado
+por el equipo: revisar SQL y diff, superar CI y revisión humana, confirmar el
+proyecto y su historial, comprobar identidades preexistentes y respaldo, y aplicar
+la migración versionada con una identidad autorizada. Verificar después historial,
+triggers, RLS y asesores. No sustituirlo por cambios manuales en el SQL Editor;
+los cambios posteriores deben quedar en nuevas migraciones. T1 no incluye ese
+despliegue ni modificaciones administrativas de Auth remoto.
+
+Referencias oficiales: [datos de usuario y triggers](https://supabase.com/docs/guides/auth/managing-user-data),
+[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[pgTAP](https://supabase.com/docs/guides/local-development/testing/pgtap-extended) y
+[cambios de CLI v3](https://supabase.com/changelog/supabase-cli-v3).
