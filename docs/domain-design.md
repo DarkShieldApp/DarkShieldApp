@@ -88,8 +88,6 @@ validador de entradas. PostgreSQL es la autoridad de las restricciones.
 Consultar [arquitectura](architecture.md), [desarrollo](development.md) y
 [migraciones y pruebas](../supabase/README.md).
 
-Para el contexto tecnológico y las responsabilidades de cada componente, consultar [architecture.md](architecture.md). Para la planificación de estas HU, consultar [development.md](development.md).
-
 ## Validación e invalidación de reportes
 
 **Requisitos relacionados:** HU-08 (validar o invalidar un reporte), HU-10 (nivel de confianza y permisos) y HU-09 (credibilidad del reporte).
@@ -98,7 +96,7 @@ Para el contexto tecnológico y las responsabilidades de cada componente, consul
 
 ### Propósito y conceptos
 
-La validación e invalidación permite que los Usuarios Colaboradores autorizados valoren reportes sobre posibles *dark patterns*, contribuyendo a determinar la fiabilidad de la información registrada en Dark-Shield.
+La validación e invalidación permite que los Usuarios Colaboradores autorizados valoren reportes sobre posibles _dark patterns_, contribuyendo a determinar la fiabilidad de la información registrada en Dark-Shield.
 
 De acuerdo con el ConOps:
 
@@ -157,13 +155,13 @@ Una solicitud que no cumpla las condiciones de autorización deberá rechazarse 
 
 Se contemplan las siguientes situaciones durante el proceso:
 
-| Situación | Comportamiento esperado |
-|---|---|
-| Usuario no autenticado | Rechazar la operación porque no se puede identificar a un colaborador autorizado. |
-| Usuario sin permisos suficientes | Rechazar la operación sin registrar la valoración. |
-| Reporte inexistente | Informar del error sin registrar una valoración asociada a un reporte inválido. |
-| Solicitud de valoración incorrecta | Rechazar los datos que no representen una operación válida. |
-| Fallo durante el almacenamiento | No comunicar que la operación ha tenido éxito si la valoración no se ha registrado correctamente. |
+| Situación                          | Comportamiento esperado                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Usuario no autenticado             | Rechazar la operación porque no se puede identificar a un colaborador autorizado.                 |
+| Usuario sin permisos suficientes   | Rechazar la operación sin registrar la valoración.                                                |
+| Reporte inexistente                | Informar del error sin registrar una valoración asociada a un reporte inválido.                   |
+| Solicitud de valoración incorrecta | Rechazar los datos que no representen una operación válida.                                       |
+| Fallo durante el almacenamiento    | No comunicar que la operación ha tenido éxito si la valoración no se ha registrado correctamente. |
 
 La forma concreta de comunicar estos errores mediante la API y la interfaz se definirá durante la implementación de HU-08.
 
