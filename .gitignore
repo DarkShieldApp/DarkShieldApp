@@ -22,3 +22,6 @@ supabase/.branches/
 tmp/
 .DS_Store
 Thumbs.db
+
+# Herramientas
+repomix-output.xml

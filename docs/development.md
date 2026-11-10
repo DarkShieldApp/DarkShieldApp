@@ -1,6 +1,6 @@
 # Desarrollo del proyecto
 
-> Estado: guía breve del esqueleto y planificación del Sprint 1 (9-22 de noviembre de 2026). No presupone funcionalidades terminadas.
+> Estado: guía de desarrollo del Sprint 1 (9-22 de noviembre de 2026), con infraestructura y entidad persistente de usuario HU-14/T1. Las restantes tareas de HU-14 y HU-11 siguen pendientes.
 
 ## Puesta en marcha y organización
 
@@ -73,6 +73,7 @@ Ejecutar desde la raíz:
 ```sh
 npm test
 npm run test:coverage
+npm run test:db # requiere Supabase local iniciado
 ```
 
 El workspace web ofrece los mismos scripts (`npm run test --workspace @darkshield/web`).
@@ -91,6 +92,11 @@ declaraciones `.d.ts` dentro de ese ámbito. Actualmente son:
 - `src/lib/supabase/client.ts`: factoría del navegador.
 - `src/server/supabase.ts`: factoría del servidor.
 - `scripts/lib/auth-health.ts`: petición y clasificación del diagnóstico.
+
+`src/server/profiles.ts` contiene únicamente el tipo `Profile`; no tiene lógica
+ejecutable ni necesita pruebas Vitest ficticias. Permanece en el ámbito de
+cobertura: V8 omite su archivo vacío tras eliminar los tipos. Las restricciones
+del perfil se prueban en PostgreSQL, sin atribuirles cobertura V8.
 
 Se exige **80 % por archivo en líneas, sentencias, ramas y funciones**; una cifra
 inferior falla. Los tests, configuraciones, documentación, pantallas de arranque
@@ -117,38 +123,38 @@ infraestructura actual y deberá revisarse con cada ampliación funcional.
 - Incorporar pruebas reales conforme aparezca código de negocio: unitarias, integración y las funcionales necesarias. Las prácticas contemplan TDD y un objetivo de **80 % de cobertura** dentro de la definición de terminado (DoD); se deberá precisar qué código se incluye en la medición. No atribuir cobertura a pantallas vacías.
 - No añadir datos simulados, endpoints de muestra o pruebas ficticias solo para dar apariencia de funcionalidad. Las decisiones técnicas y riesgos relevantes se documentan en los [ADR](adr/0001-repository-and-typescript.md) o en las tareas que los motivan.
 
-### Estado de las comprobaciones
+### Migraciones, perfiles y comprobaciones
 
-La documentación del esqueleto original dejó registradas estas verificaciones locales (Node.js 24.15.0 y npm 12.2.1): instalación, `npm run check`, respuesta HTTP 200 de la web de arranque, compilación de la extensión Manifest V3 sin permisos de producción y `git diff --check`. **No** se había instalado y probado manualmente la extensión en un navegador ni comprobado ninguna HU o integración real.
+`web/src/server/profiles.ts` representa la fila de `public.profiles`. En futuros
+módulos del servidor:
 
-La preparación del 10/11/2026 incorpora `.github/workflows/ci.yml`: en push a `main`
-y PR dirigidas a `main`, ejecuta `npm ci`, `npm run check` y `npm run test:coverage`
-con Node.js 24 y npm 12.2.1. Tiene permisos `contents: read`, caché npm y acciones
-oficiales fijadas por SHA (checkout 7.0.1 y setup-node 7.1.0, verificadas en sus
-repositorios). No utiliza secretos, diagnósticos remotos, despliegues ni tolerancia
-a fallos. Una ejecución real en GitHub solo se podrá comprobar tras publicar.
+```ts
+import type { Profile } from '@/server/profiles';
+```
 
-`npm run check` conserva formato, lint, tipos y compilación de ambas aplicaciones;
-las pruebas y cobertura son el paso adicional obligatorio de CI. La instancia
-local y la futura ampliación SQL/RLS se explican en [Supabase](../supabase/README.md).
-No hay todavía esquema de aplicación, sesiones, alertas ni análisis de IA.
+Sus fechas y UUID son cadenas JSON; el tipo no valida entradas en tiempo de
+ejecución ni proporciona autenticación. Mantenerlo alineado con las migraciones.
+No se han modificado las factorías para introducir sesiones o un cliente privilegiado.
 
-Validación local de esta preparación (10/11/2026, Node.js 24.15.0 y npm 12.2.1):
+La [guía de Supabase](../supabase/README.md) describe cómo iniciar la instancia,
+aplicar migraciones pendientes sin borrar datos, ejecutar pgTAP y revisar los
+asesores locales. La suite incluye perfiles nuevos y preexistentes, integridad,
+fechas, rollback y RLS bajo roles reales. Cada prueba revierte sus datos y DDL.
+No ejecutar esta suite en un entorno compartido.
 
-- `npm ci` y `npm run check` completados. El segundo se ejecutó con ambas
-  variables Supabase vacías, comprobando que Next.js no las reemplazaba con las
-  de `web/.env`; compilaron web y extensión.
-- `npm test` y `npm run test:coverage`: 54 pruebas correctas; 100 % de líneas,
-  sentencias, funciones y ramas en los cuatro archivos declarados. No es
-  cobertura del producto completo.
-- Una selección sin tests devolvió código 1. Una ejecución parcial de cobertura
-  incluyó los módulos no importados con 0 % y falló por el umbral del 80 %.
-- `actionlint` 1.7.12 validó el workflow; `git diff --check` no encontró errores.
-- El diagnóstico real de Auth respondió HTTP 200. No se probó PostgreSQL:
-  `supabase start` falló porque el motor Docker no estaba disponible.
-- Se comprobó que `web/.env` seguía ignorado y sin cambios, la plantilla seguía
-  versionada, había un único lockfile y no se habían copiado valores locales a
-  archivos versionados o nuevos para revisión. No se ejecutó CI en GitHub.
+`.github/workflows/ci.yml` conserva el job `check`: `npm ci`, `npm run check` y
+`npm run test:coverage`. Añade `database`, que comprueba la presencia de SQL,
+inicia Supabase con PostgreSQL 17 sobre el Docker del runner, aplica las
+migraciones y ejecuta `npm run test:db`. Detiene los servicios con `always()`.
+Los fallos se propagan; no se utiliza `continue-on-error` ni se necesitan secretos.
+Ambos jobs se ejecutan en push a `main` y PR dirigidas a `main`, con Node.js 24,
+npm 12.2.1, permisos `contents: read` y acciones fijadas por SHA.
+
+La validación local no sustituye la ejecución efectiva en GitHub tras publicar
+la rama, ni la revisión humana independiente. La migración remota se gestionará
+por separado: revisar SQL e historial, comprobar respaldo e identidades existentes,
+aplicar el archivo versionado por el procedimiento autorizado y verificar después
+RLS y asesores. No resolver diferencias mediante SQL manual fuera del historial.
 
 ### Dependencias de herramientas
 
@@ -166,7 +172,7 @@ El Sprint 1 se planificó del **9 al 22 de noviembre de 2026** con **ocho HU y 4
 
 | HU                                 | Área de trabajo prevista            | Dependencia o acuerdo inicial                                           |
 | ---------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| HU-14 — Usuarios, roles y permisos | Servidor y migraciones              | Acordar identidades, perfiles y permisos antes de HU-11 y HU-10         |
+| HU-14 — Usuarios, roles y permisos | Servidor y migraciones              | T1 implementa identidad/perfil; T2 y T3 definirán roles y permisos      |
 | HU-11 — Acceso del colaborador     | Web, servidor y autenticación       | Resolver sesiones y acceso autorizado para habilitar HU-05              |
 | HU-05 — Crear reportes             | Interfaz, API, servidor y datos     | Definir estructura y errores de los reportes antes de consumirlos       |
 | HU-06 — Evidencias                 | Interfaz, servidor y almacenamiento | Investigar servicio, límites y control de acceso a archivos             |

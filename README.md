@@ -5,8 +5,10 @@ workspaces. La web utiliza Next.js (interfaz React y backend HTTP); la extensió
 WXT con React y Manifest V3. Supabase es la persistencia acordada y Supabase Auth
 el sistema de autenticación elegido.
 
-Este esqueleto solo muestra una página y un popup de arranque. No implementa ninguna
-HU, endpoint, autenticación de usuarios, modelo de datos, consulta, alerta ni integración con IA.
+La interfaz conserva una página y un popup de arranque. HU-14/T1 incorpora la entidad
+persistente de usuario: `public.profiles`, vinculada a Supabase Auth, con migración,
+creación automática, RLS y pruebas PostgreSQL. No completa HU-14 ni implementa
+endpoints, flujos de autenticación, alertas o integración con IA.
 Incluye factorías Supabase sin estado, diagnóstico manual de Auth y pruebas unitarias.
 No necesita credenciales ni un proyecto Supabase para arrancar.
 
@@ -19,13 +21,14 @@ DarkShieldApp/
 │       ├── app/             # Páginas y layouts de Next.js
 │       │   └── api/         # Lugar para los futuros endpoints
 │       ├── lib/supabase/    # Configuración y cliente de navegador
-│       └── server/          # Cliente Supabase exclusivo del servidor
+│       └── server/          # Cliente Supabase y tipo Profile del dominio
 ├── extension/
 │   ├── src/entrypoints/popup/
 │   └── wxt.config.ts       # WXT genera el manifest al compilar
 ├── supabase/
 │   ├── config.toml         # Instancia local aislada mediante CLI
-│   └── migrations/         # Reserva para futuros cambios SQL
+│   ├── migrations/         # Esquema de profiles, triggers y RLS
+│   └── tests/              # Pruebas pgTAP de integridad y seguridad
 ├── docs/
 │   └── architecture.md     # Arquitectura y decisiones iniciales
 ├── .github/workflows/ci.yml
@@ -78,6 +81,7 @@ otros navegadores requerirán su propia comprobación de compatibilidad.
 | `npm run check`           | Formato, lint, tipos y compilación                 |
 | `npm test`                | Pruebas unitarias, sin modo interactivo            |
 | `npm run test:coverage`   | Pruebas e informes V8, umbral del 80 % por archivo |
+| `npm run test:db`         | Pruebas SQL/pgTAP contra Supabase local iniciado   |
 | `npm run supabase:check`  | Diagnóstico remoto de Auth usando `web/.env`       |
 | `npm run supabase:start`  | Iniciar Supabase local (requiere Docker)           |
 | `npm run supabase:stop`   | Detener Supabase local conservando los datos       |
@@ -105,14 +109,17 @@ el build: para usar el cliente en un despliegue futuro, configurar y recompilar.
 
 La CI en `.github/workflows/ci.yml` ejecuta `npm ci`, `npm run check` y
 `npm run test:coverage` con Node.js 24 y npm 12.2.1 en PR dirigidas a `main` y push
-a `main`. No despliega, no necesita secretos y no accede al Supabase remoto.
+a `main`. Un job independiente inicia Supabase local con PostgreSQL 17, aplica
+las migraciones, ejecuta `npm run test:db` y detiene los servicios incluso si falla.
+No despliega, no necesita secretos y no accede al Supabase remoto.
 Su ejecución en GitHub quedará pendiente hasta que el equipo publique los cambios.
 
 Las pruebas cubren configuración, inicialización sin sesiones y diagnóstico de Auth.
 El informe HTML se genera en `web/coverage/index.html`; el alcance y la ampliación
 a futuras HU y a la extensión se detallan en [desarrollo](docs/development.md).
-No hay todavía pruebas funcionales de historias, tablas de dominio, migraciones ni
-RLS. Esta preparación es transversal: **no completa HU-14/T1 ni HU-11**.
+La suite SQL comprueba la entidad y los accesos con roles reales; su resultado
+es independiente de la cobertura V8. El [diseño del dominio](docs/domain-design.md)
+describe T1 y los trabajos pendientes de roles, permisos, confianza y autenticación.
 
 Consultar [la decisión de arquitectura](docs/architecture.md) para el mapa de HU,
 las dependencias del Sprint 1 y las discrepancias encontradas en las fuentes.
