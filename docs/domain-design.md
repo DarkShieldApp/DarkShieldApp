@@ -117,6 +117,61 @@ validadores de entradas. PostgreSQL es la autoridad de las restricciones.
 Consultar [arquitectura](architecture.md), [desarrollo](development.md) y
 [migraciones y pruebas](../supabase/README.md).
 
+## Consulta de reportes asociados a una página (HU-01)
+
+**Requisito relacionado:** HU-01 — Consultar una página.
+**Origen de esta definición:** HU-01, T1 — Definir el flujo de consulta de una página web; ConOps, secciones 4, 5 y 6.
+**Estado:** Flujo funcional definido. La clave exacta de búsqueda y su implementación corresponden a las tareas posteriores de HU-01.
+
+### Propósito y alcance
+
+Permitir que el Usuario Consumidor consulte información sobre posibles _dark patterns_ reportados para una página, y que el Usuario Desarrollador Web consulte reportes relacionados con sus páginas o aplicaciones. La consulta es de solo lectura: no crea ni modifica reportes. Los resultados representan reportes comunitarios sobre posibles patrones, no una confirmación definitiva de que estén presentes.
+
+El ConOps contempla dos puntos de entrada: la Plataforma Web, donde se solicita la consulta, y la Extensión Web, que puede identificar la URL o el dominio visitado, consultar la información y mostrar una alerta o resumen breve con acceso a la plataforma para ampliar información. Para el Sprint 1, HU-01 cubre la consulta desde la web; la integración de la extensión queda fuera del alcance actual (HU-17 permanece en el Backlog). El flujo cubre la presentación del listado resumido; el detalle completo de un reporte queda fuera del Sprint 1 (HU-02).
+
+### Flujo funcional principal
+
+1. El Usuario Consumidor o el Usuario Desarrollador Web accede a la consulta desde la Plataforma Web y proporciona la página que quiere consultar. En el flujo previsto para la Extensión Web, esta obtiene del navegador la URL o el dominio actual y solicita la misma información.
+2. El sistema comprueba que la solicitud pueda procesarse y consulta al servidor por los reportes asociados.
+3. El servidor recupera la información disponible para esa página y devuelve los resultados que el usuario está autorizado a consultar.
+4. Si hay resultados, la Plataforma Web presenta el listado con el resumen acordado para HU-01 y, cuando esté disponible, el estado de credibilidad. La Extensión Web, cuando se implemente, presenta un aviso o resumen breve y ofrece abrir la Plataforma Web para consultar más información.
+5. La persona interpreta los resultados como posibles patrones reportados, no como detecciones o validaciones concluyentes. Puede volver al listado o iniciar otra consulta.
+
+La validación y el alcance de la búsqueda (por URL, dominio u otra regla de asociación) se concretarán en HU-01/T2. El flujo no presupone una estrategia de normalización ni un límite de resultados. La extensión no debe modificar el contenido ni el funcionamiento de la página visitada.
+
+### Flujos alternativos
+
+| Situación | Comportamiento esperado |
+| --- | --- |
+| La consulta no encuentra reportes | Informar que no hay reportes asociados a la página consultada y permitir corregir la entrada o realizar otra búsqueda. No mostrarlo como un error del sistema. |
+| La entrada no se puede procesar | Explicar que no se pudo consultar esa página y permitir corregir la entrada. La regla concreta de validación se definirá en HU-01/T2. |
+| La consulta falla o el servidor no responde | Informar que no se pudo completar la consulta y permitir reintentar. No presentar el fallo como una búsqueda completada sin resultados. |
+| Hay reportes, pero la credibilidad aún no está disponible | Mostrar la información resumida disponible sin inventar ni inferir un estado de credibilidad. |
+
+### Reglas del flujo
+
+- **HU01-FL-01 — Consulta de solo lectura.** La búsqueda no registra, edita ni elimina reportes.
+- **HU01-FL-02 — Correspondencia del resultado.** El listado contiene únicamente reportes que el servidor considere asociados a la página según el criterio que se acuerde en HU-01/T2 y el contrato de HU-05.
+- **HU01-FL-03 — Diferenciar vacío de error.** Una consulta completada sin coincidencias se distingue de una consulta que no pudo completarse.
+- **HU01-FL-04 — Reportes, no detecciones concluyentes.** Los resultados describen posibles _dark patterns_ comunicados mediante reportes. Una consulta, una alerta o la intervención de la IA no confirma por sí sola que el patrón exista.
+- **HU01-FL-05 — Resumen en el listado.** La Plataforma Web presenta el resumen previsto para HU-01/T6. La Extensión Web ofrece una alerta o resumen breve con acceso a la Plataforma Web para ampliar información; este canal pertenece a HU-17 y no se implementa en el Sprint 1. El detalle completo no forma parte del alcance del Sprint 1.
+- **HU01-FL-06 — Credibilidad dinámica.** Se muestra el estado de credibilidad cuando esté disponible conforme a HU-09. La credibilidad puede cambiar con nuevas evidencias, valoraciones u otra información y no equivale a una decisión definitiva sobre la página.
+- **HU01-FL-07 — Acceso y protección.** La consulta sirve al Usuario Consumidor y al Usuario Desarrollador Web, de acuerdo con la información disponible y las reglas de privacidad y acceso. No requiere permisos de colaborador para consultar información pública; los campos que se exponen públicamente y cualquier restricción adicional deben acordarse antes de implementar el acceso.
+- **HU01-FL-08 — Uso legítimo y abuso.** La consulta debe seguir disponible para el uso ordinario, con controles proporcionales frente a extracción masiva o abusiva. Los mecanismos concretos no se definen en T1.
+
+### Dependencias y decisiones pendientes
+
+- **HU-05:** proporciona el modelo, el contrato y la visibilidad de los reportes que se consultarán.
+- **HU-01/T2:** debe acordar qué identifica una página y qué reportes se consideran asociados (por ejemplo, URL o dominio), además de la validación de la entrada.
+- **HU-01/T3 y T4:** implementan la consulta del servidor y su interfaz según este flujo.
+- **HU-01/T5:** concreta la gestión de páginas sin reportes y de errores de consulta.
+- **HU-01/T6 y T7, HU-09:** concretan el resumen y la presentación del estado de credibilidad.
+- **ConOps:** identifica al Usuario Consumidor como persona que consulta información y a los Usuarios Desarrolladores Web como consumidores de reportes; la Plataforma Web ofrece la consulta principal y la Extensión Web el acceso contextual durante la navegación.
+- **HU-17:** implementará el punto de entrada de la extensión, su resumen/alerta y el enlace a la plataforma. Está fuera del Sprint 1; en esta definición se documenta solo el flujo futuro de interacción.
+- **Acceso a la consulta:** concretar qué información del reporte es pública y qué campos requieren protección. La consulta de información pública no debe depender de permisos de colaborador; la autenticación y autorización aplicables a datos restringidos se definirán con HU-11 y las reglas de seguridad.
+
+La documentación de planificación señala que los criterios originales de HU-01 mencionan entrar al detalle de un reporte, mientras que la planificación del Sprint define T6 como mostrar un resumen desde el listado y deja HU-02 fuera del Sprint. Este flujo sigue el alcance planificado para el Sprint; el criterio formal de aceptación debe confirmarse antes de cerrar HU-01.
+
 ## Validación e invalidación de reportes
 
 **Requisitos relacionados:** HU-08 (validar o invalidar un reporte), HU-10 (nivel de confianza y permisos) y HU-09 (credibilidad del reporte).
