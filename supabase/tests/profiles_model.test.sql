@@ -5,7 +5,7 @@ select no_plan();
 
 select has_table('public', 'profiles', 'Profiles exists');
 select columns_are('public', 'profiles', array[
-  'id', 'display_name', 'trust_level', 'is_active', 'created_at', 'updated_at'
+  'id', 'display_name', 'trust_level', 'is_active', 'created_at', 'updated_at', 'role_code'
 ], 'Only the agreed domain attributes exist');
 select col_type_is('public', 'profiles', 'id', 'uuid', 'Column contract: id');
 select col_type_is('public', 'profiles', 'display_name', 'text', 'Column contract: display_name');
