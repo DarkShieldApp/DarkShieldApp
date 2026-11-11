@@ -2,6 +2,7 @@
 
 Supabase/PostgreSQL y Supabase Auth son las tecnologías adoptadas. HU-14/T1
 incorpora `public.profiles`, su primera migración, triggers, RLS y pruebas reales.
+T2 añade `public.roles` y un rol principal obligatorio por perfil.
 Las factorías web siguen sin estado. Registro, login, logout, cookies y sesiones
 pertenecen a HU-11 y todavía no están implementados.
 
@@ -15,15 +16,15 @@ claves administrativas ni contraseñas remotas en código o Git.
 `/auth/v1/health`. Su resultado demuestra disponibilidad de Auth, no el modelo ni
 RLS. No crea usuarios ni sesiones y no se ejecuta en CI o build.
 
-La migración de T1 está versionada para revisión y validación local; no se ha
-aplicado al proyecto remoto compartido. El remoto utiliza PostgreSQL 17.
+Las migraciones de T1/T2 están versionadas para validación local. Esta tarea no
+las aplica al proyecto remoto compartido; su estado debe comprobarse antes del despliegue. El remoto utiliza PostgreSQL 17.
 
 ## Instancia local y migraciones
 
 Supabase CLI 3.1.0 es una dependencia fijada en el lockfile. La configuración
 local usa PostgreSQL 17, API, Auth, Studio y correo local. Storage, Realtime,
 Edge Functions y Analytics están desactivados, al igual que el registro público.
-No hay seeds. La CLI v3 usa el entorno local por defecto; los comandos de esta
+No hay archivos seed; los tres roles se siembran en la propia migración T2. La CLI v3 usa el entorno local por defecto; los comandos de esta
 sección no llevan `--remote` y no necesitan login ni enlazar el proyecto remoto.
 
 Requisitos: Node.js 24, npm 11 o 12, Docker con motor Linux y puertos 54320–54324
@@ -62,7 +63,7 @@ npm exec -- supabase stop
 `migrations/20261110154948_create_profiles.sql`, creada con `supabase migration
 new create_profiles`, define:
 
-- `public.profiles`, seis atributos y sus restricciones, con UUID compartido y FK
+- `public.profiles`, seis atributos originales (siete después de T2) y sus restricciones, con UUID compartido y FK
   `ON DELETE RESTRICT` a `auth.users`.
 - `private.create_profile_for_auth_user()`, invocada después de insertar en Auth,
   que crea un perfil con valores predeterminados sin copiar metadatos.
@@ -91,6 +92,28 @@ conversión de decimales a `SMALLINT`, desactivación, preservación de identida
 consecuencias de la FK ante necesidades excepcionales de eliminación. La política
 sobre perfiles no revoca sesiones ni protege futuras tablas y endpoints.
 
+## Migración de roles
+
+`migrations/20261111113011_create_roles.sql`, generada mediante `supabase migration
+new create_roles`, añade el catálogo con PK textual y CHECK de los tres códigos:
+`collaborator` (Colaborador), `developer` (Desarrollador), `admin` (Administrador).
+El nombre es obligatorio, de 1–80 caracteres, sin controles y no solo espacios;
+la descripción es texto opcional. No crea identidades ni cuentas administrativas.
+
+Primero siembra el catálogo y después añade `profiles.role_code TEXT NOT NULL
+DEFAULT 'collaborator'` con FK `ON UPDATE RESTRICT ON DELETE RESTRICT`. PostgreSQL
+17 aplica el default constante también a filas anteriores, sin reescribir sus
+atributos o disparar UPDATE. La función de fechas se reemplaza para comparar
+además `role_code`, manteniendo invocador, search_path vacío y ACL privadas.
+El trigger de alta Auth permanece intacto y no lee roles de metadatos.
+
+El catálogo tiene RLS explícita; se revocan los grants de `PUBLIC`, `anon`,
+`authenticated` y `service_role`, concediendo solo SELECT a `authenticated`
+con política explícita. La política del perfil propio activo no cambia y no hay
+escrituras públicas, ni de tabla ni de columna. Leer roles no concede capacidades.
+T3 definirá permisos, capacidades acumulativas, cambio administrativo y auditoría;
+HU-11 resolverá sesiones. El consumidor sin cuenta no es un rol persistente.
+
 ## Pruebas PostgreSQL y RLS
 
 `npm run test:db` ejecuta `supabase test db` con pgTAP sobre la instancia local.
@@ -107,6 +130,15 @@ La CLI prepara pgTAP; no se añaden dependencias al esquema de aplicación.
   a perfiles y reproduce el SQL exacto guardado por la CLI en
   `supabase_migrations.schema_migrations`; prueba identidades preexistentes y
   posteriores. No mantiene una copia paralela de la migración.
+
+- `roles_model.test.sql`: catálogo exacto, integridad, defaults, metadatos ignorados,
+  FK conservadora y fechas ante cambio de rol, no-op e intento de falsificación.
+- `roles_rls.test.sql`: lectura autenticada, denegación anónima, ACL de tabla y
+  columna, escrituras y autopromoción denegadas; grants temporales aíslan RLS.
+- `roles_backfill.test.sql`: restaura transaccionalmente el esquema T1 y reproduce
+  T2 desde el historial real; verifica preservación de atributos y fechas y el
+  default para perfiles existentes. La prueba histórica de T1 sigue funcionando:
+  al eliminar profiles desaparece su FK saliente y roles permanece sin conflicto.
 
 Cada archivo usa `BEGIN`/`ROLLBACK`, UUID propios y un plan pgTAP; datos, DDL y
 grants temporales desaparecen al finalizar o abortar la conexión. Estas pruebas
@@ -125,7 +157,7 @@ npm exec -- supabase db advisors --type security --fail-on error
 
 Consultar `--help` al actualizar la CLI. La CLI 3 ya no necesita `--local` para
 estos comandos. No confundir un asesor del remoto sin migrar con la revisión del
-esquema local de T1.
+esquema local de T1/T2.
 
 ## Integración continua y despliegue posterior
 
@@ -140,9 +172,9 @@ no utiliza secretos ni oculta fallos con `continue-on-error`.
 El despliegue remoto se realizará posteriormente por el procedimiento acordado
 por el equipo: revisar SQL y diff, superar CI y revisión humana, confirmar el
 proyecto y su historial, comprobar identidades preexistentes y respaldo, y aplicar
-la migración versionada con una identidad autorizada. Verificar después historial,
+las migraciones versionadas en orden con una identidad autorizada. Verificar después historial,
 triggers, RLS y asesores. No sustituirlo por cambios manuales en el SQL Editor;
-los cambios posteriores deben quedar en nuevas migraciones. T1 no incluye ese
+los cambios posteriores deben quedar en nuevas migraciones. T1/T2 no incluyen ese
 despliegue ni modificaciones administrativas de Auth remoto.
 
 Referencias oficiales: [datos de usuario y triggers](https://supabase.com/docs/guides/auth/managing-user-data),

@@ -1,7 +1,7 @@
 # ADR-004 — Persistencia con Supabase
 
 - **Fecha:** 9 de noviembre de 2026.
-- **Estado:** Supabase y Supabase Auth adoptados; SDK, CLI y perfil de usuario HU-14/T1 implementados el 10 de noviembre de 2026. Los flujos de autenticación y las restantes entidades siguen pendientes.
+- **Estado:** Supabase y Supabase Auth adoptados; SDK, CLI y perfil de usuario HU-14/T1 implementados el 10 de noviembre de 2026. T2 añade catálogo y rol principal el 11 de noviembre de 2026. Autenticación, permisos y las restantes entidades siguen pendientes.
 
 ## Contexto
 
@@ -27,6 +27,23 @@ perfiles directamente: esquema `private` no expuesto, `search_path` vacío,
 referencias cualificadas y ejecución pública revocada. Las pruebas pgTAP verifican
 permisos y políticas con roles reales, en PostgreSQL local y en un job de CI
 independiente. No se despliega automáticamente al proyecto compartido.
+
+## Catálogo y rol principal (HU-14/T2)
+
+Se persisten exactamente tres códigos de dominio en `public.roles`: `collaborator`,
+`developer` y `admin`, con nombres legibles y descripción opcional. Cada perfil
+referencia un código mediante `role_code NOT NULL`, default `collaborator` y FK
+con `RESTRICT` en actualización y borrado. La migración nueva aplica el default
+a perfiles anteriores y conserva los triggers de T1, ampliando solo la comparación
+de fechas para incluir el rol. Los metadatos Auth no intervienen en la asignación.
+
+El catálogo tiene RLS y solo lectura autenticada; se revocan los grants por defecto.
+No hay tabla intermedia, permisos ni jerarquía implícita. Esta decisión mantiene
+un rol principal sin excluir futuras capacidades de colaboración de administradores
+y desarrolladores: T3 definirá permisos explícitos, administración y auditoría.
+No cambia la gestión de sesiones (HU-11) ni reglas de confianza (HU-10/HU-08).
+Las dos migraciones requieren despliegue posterior autorizado al remoto compartido;
+esta tarea no aplica cambios remotos.
 
 ## Consecuencias y asuntos abiertos
 

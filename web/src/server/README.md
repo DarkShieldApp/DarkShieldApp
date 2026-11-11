@@ -9,7 +9,9 @@ Este código no debe importarse desde componentes con `"use client"` ni desde la
 extensión. Al crear módulos con acceso a datos o secretos, usar `import 'server-only'`
 y mantener esa frontera, comprobada por Next.js (la dependencia ya está instalada).
 
-`profiles.ts` exporta el tipo persistido `Profile` de HU-14/T1. Usar
+`profiles.ts` exporta los tipos `Profile`, `Role` y `RoleCode` de HU-14/T1–T2.
+`Profile.role_code` es obligatorio; la unión `RoleCode` contiene `collaborator`,
+`developer` y `admin`. Un rol no concede capacidades por sí solo. Usar
 `import type { Profile } from '@/server/profiles'` en los futuros módulos del
 servidor. Refleja la fila SQL, con UUID y fechas como cadenas JSON; no valida
 entradas ni crea un cliente, servicio CRUD o sesión. Mantenerlo alineado con las

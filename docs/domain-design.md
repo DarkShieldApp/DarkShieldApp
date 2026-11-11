@@ -1,7 +1,7 @@
 # Diseño del dominio
 
-HU-14/T1 define e implementa el perfil de usuario. Las restantes entidades se
-diseñarán al abordar sus historias; T1 no completa la historia HU-14.
+HU-14/T1 implementa el perfil y T2 su rol principal persistente. T3 (permisos)
+sigue pendiente; estas tareas no completan la historia HU-14.
 
 ## Identidad y perfil
 
@@ -17,6 +17,7 @@ correo, contraseña, sesión ni metadatos internos de Auth.
 | `is_active`    | `BOOLEAN`       | Obligatorio, inicialmente `TRUE`                                                                        |
 | `created_at`   | `TIMESTAMPTZ`   | Obligatorio, `now()` al insertar, preservado al actualizar                                              |
 | `updated_at`   | `TIMESTAMPTZ`   | Obligatorio, `now()` al insertar; reloj real al cambiar datos del perfil                                |
+| `role_code`    | `TEXT`          | Obligatorio, default `collaborator`, FK a `roles(code)` con actualización y borrado restringidos        |
 
 Un `AFTER INSERT` en `auth.users` crea exactamente un perfil usando solo el UUID.
 La migración también incorpora perfiles para las identidades existentes. La PK
@@ -30,6 +31,34 @@ lo que detecta también cambios desde/hacia `NULL`. Un `UPDATE` sin cambios real
 mantiene `updated_at`; una modificación solo de fechas tampoco altera las fechas.
 Se usa `clock_timestamp()` al cambiar datos para reflejar cambios sucesivos dentro
 de una misma transacción, donde `now()` permanece constante.
+
+## Roles de aplicación (HU-14/T2)
+
+`public.roles` es un catálogo de dominio: `code TEXT PRIMARY KEY`, `name TEXT
+NOT NULL` y `description TEXT` opcional. El código admite exactamente
+`collaborator`, `developer` y `admin`. Los nombres son Colaborador, Desarrollador
+y Administrador; no admiten cadenas vacías, solo espacios ni controles.
+
+`profiles.role_code TEXT NOT NULL DEFAULT 'collaborator'` es el séptimo atributo,
+con FK a `roles(code)` y `ON UPDATE RESTRICT ON DELETE RESTRICT`. La relación
+roles–perfiles es uno a muchos: cada perfil tiene un único rol principal.
+La segunda migración siembra el catálogo antes de añadir la columna; los perfiles
+anteriores reciben el default sin modificar sus datos ni fechas. El trigger de
+Auth sigue insertando solo el UUID: los metadatos no conceden roles. La función
+de fechas incluye `role_code` entre los cambios efectivos.
+
+Son roles de aplicación, distintos de los roles PostgreSQL/Supabase o permisos
+de GitHub. El consumidor sin cuenta del ConOps no es un cuarto rol persistente.
+No hay jerarquía ni exclusión de capacidades: administradores y desarrolladores
+podrán colaborar si T3 les concede los permisos correspondientes. Leer el catálogo
+o tener un código de rol no autoriza ninguna acción por sí mismo.
+
+RLS y ACL permiten a `authenticated` únicamente leer el catálogo público. `anon`
+no tiene acceso; no hay escritura pública sobre roles ni perfiles, ni RPC de
+administración. El propietario SQL gestiona las migraciones. T3 definirá la
+matriz de permisos, autorización, capacidades acumulativas, cambio administrativo
+de roles y auditoría. HU-11 resolverá registro, login, sesiones, cookies y rutas;
+HU-10/HU-08 concretarán confianza efectiva, umbrales y validaciones autorizadas.
 
 ## Confianza y estado de cuenta
 
@@ -74,12 +103,12 @@ es una barrera contra el propietario ni contra superusuarios.
 
 ## Representación TypeScript y dependencias
 
-`web/src/server/profiles.ts` exporta `Profile`, que refleja la fila persistida:
+`web/src/server/profiles.ts` exporta `Profile`, `Role` y `RoleCode`. `Profile` refleja la fila persistida:
 UUID y fechas son cadenas JSON, confianza es `number` y el nombre es `string | null`.
-Es un tipo estático escrito a partir de esta migración, no tipos generados ni un
-validador de entradas. PostgreSQL es la autoridad de las restricciones.
+Son tipos estáticos alineados con las migraciones, no tipos generados ni
+validadores de entradas. PostgreSQL es la autoridad de las restricciones.
 
-- **HU-14/T2:** creación y asignación de roles, todavía sin tablas ni relaciones.
+- **HU-14/T2:** catálogo y rol principal implementados, con integridad y seguridad inicial.
 - **HU-14/T3:** permisos y operaciones administrativas controladas.
 - **HU-11:** registro, confirmación, acceso, cookies, sesiones y autenticación en Next.js.
 - **HU-10:** consulta de confianza y permisos efectivos; cálculo y reglas en las HU relacionadas.
