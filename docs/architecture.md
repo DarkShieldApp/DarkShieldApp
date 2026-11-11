@@ -1,6 +1,6 @@
 # Arquitectura de DarkShield
 
-> Estado: arquitectura inicial con infraestructura Supabase y entidad de usuario HU-14/T1 (10 de noviembre de 2026). HU-14 completa y los flujos de HU-11 siguen pendientes.
+> Estado: arquitectura inicial con infraestructura Supabase, perfiles y roles HU-14/T1–T2 (11 de noviembre de 2026). T3 y los flujos de HU-11 siguen pendientes.
 
 ## Visión general
 
@@ -34,10 +34,10 @@ flowchart LR
 ### Responsabilidades
 
 - **`web/src/app/`**: páginas, layouts y futuros _Route Handlers_ en `web/src/app/api/`. Las operaciones compartidas por web y extensión deberán tener un contrato HTTP claro.
-- **`web/src/server/`**: contiene la factoría Supabase marcada con `server-only` y el tipo persistido `Profile`; albergará autorización y reglas del dominio. El cliente no debe ser la autoridad sobre roles, permisos, credibilidad o confianza.
+- **`web/src/server/`**: contiene la factoría Supabase marcada con `server-only` y los tipos persistidos `Profile`, `Role` y `RoleCode`; albergará autorización y reglas del dominio. El cliente no debe ser la autoridad sobre roles, permisos, credibilidad o confianza.
 - **`web/src/lib/supabase/`**: validación compartida y factoría de navegador marcada con `client-only`. Se valida al crear cada cliente, sin instancias globales ni acceso a red en la importación. Ambas factorías usan únicamente la clave publicable y desactivan persistencia, renovación y detección de sesiones en URL.
 - **`extension/src/entrypoints/`**: hoy contiene el popup. Un _background/service worker_ y los permisos necesarios se estudiarán cuando se implementen HU-17 o HU-03. No existen actualmente consultas ni alertas reales.
-- **`supabase/migrations/`**: contiene la primera migración de `public.profiles`, funciones privadas, triggers y política de lectura propia activa. `supabase/tests/` verifica integridad y RLS con PostgreSQL real.
+- **`supabase/migrations/`**: contiene las migraciones de `public.profiles` y `public.roles`, funciones privadas, triggers y políticas de lectura propia activa y del catálogo autenticado. `supabase/tests/` verifica integridad y RLS con PostgreSQL real.
 
 Cuando ambos clientes necesiten reutilizar un contrato, se podrá incorporar `packages/contracts/` para los tipos o esquemas acordados. **No se crea todavía**: las entidades y formatos de intercambio deben surgir de las tareas de diseño, y TypeScript no sustituye la validación de datos recibidos por HTTP.
 
@@ -70,6 +70,6 @@ Son decisiones de arranque revisables; no implican que las HU correspondientes e
 
 ## Trabajo todavía no definido o implementado
 
-Está implementado el modelo persistente de usuario de T1. Siguen pendientes roles (HU-14/T2), permisos y administración (T3), las restantes entidades y sus migraciones/RLS, acceso a evidencias, autenticación, sesiones, contratos API, cálculo de credibilidad, integración con IA, pruebas de esos flujos y permisos de navegador. Tampoco se han elegido un ORM, colas, servicio independiente de IA ni un sistema adicional de orquestación del monorepositorio: no existe aún una necesidad que los justifique.
+Están implementados el perfil de T1 y el catálogo con rol principal único de T2. No conceden capacidades implícitas: T3 definirá permisos acumulativos, cambio administrativo de roles y auditoría. Siguen pendientes permisos y administración (T3), las restantes entidades y sus migraciones/RLS, acceso a evidencias, autenticación, sesiones, contratos API, cálculo de credibilidad, integración con IA, pruebas de esos flujos y permisos de navegador. Tampoco se han elegido un ORM, colas, servicio independiente de IA ni un sistema adicional de orquestación del monorepositorio: no existe aún una necesidad que los justifique.
 
 El [diseño del dominio](domain-design.md) recoge expresamente lo que falta por definir; el [documento de desarrollo](development.md) conserva la organización del Sprint 1, los criterios de trabajo y las discrepancias entre fuentes. El [README](../README.md) contiene los comandos de instalación y arranque.

@@ -1,6 +1,6 @@
 # Desarrollo del proyecto
 
-> Estado: guía de desarrollo del Sprint 1 (9-22 de noviembre de 2026), con infraestructura y entidad persistente de usuario HU-14/T1. Las restantes tareas de HU-14 y HU-11 siguen pendientes.
+> Estado: guía de desarrollo del Sprint 1 (9-22 de noviembre de 2026), con infraestructura, perfiles y roles persistentes HU-14/T1–T2. HU-14/T3 y HU-11 siguen pendientes.
 
 ## Puesta en marcha y organización
 
@@ -93,7 +93,7 @@ declaraciones `.d.ts` dentro de ese ámbito. Actualmente son:
 - `src/server/supabase.ts`: factoría del servidor.
 - `scripts/lib/auth-health.ts`: petición y clasificación del diagnóstico.
 
-`src/server/profiles.ts` contiene únicamente el tipo `Profile`; no tiene lógica
+`src/server/profiles.ts` contiene únicamente los tipos `Profile`, `Role` y `RoleCode`; no tiene lógica
 ejecutable ni necesita pruebas Vitest ficticias. Permanece en el ámbito de
 cobertura: V8 omite su archivo vacío tras eliminar los tipos. Las restricciones
 del perfil se prueban en PostgreSQL, sin atribuirles cobertura V8.
@@ -123,6 +123,16 @@ infraestructura actual y deberá revisarse con cada ampliación funcional.
 - Incorporar pruebas reales conforme aparezca código de negocio: unitarias, integración y las funcionales necesarias. Las prácticas contemplan TDD y un objetivo de **80 % de cobertura** dentro de la definición de terminado (DoD); se deberá precisar qué código se incluye en la medición. No atribuir cobertura a pantallas vacías.
 - No añadir datos simulados, endpoints de muestra o pruebas ficticias solo para dar apariencia de funcionalidad. Las decisiones técnicas y riesgos relevantes se documentan en los [ADR](adr/0001-repository-and-typescript.md) o en las tareas que los motivan.
 
+### Roles implementados en T2
+
+El catálogo `roles` contiene `collaborator`, `developer` y `admin`. Cada perfil
+tiene un `role_code` obligatorio con FK conservadora y default `collaborator`.
+La nueva migración conserva T1, rellena perfiles anteriores y amplía la función
+de fechas; no modifica el trigger de alta ni consume metadatos como autoridad.
+Solo hay lectura autenticada del catálogo y del propio perfil activo. No hay
+escritura pública ni operaciones de promoción. Permisos y auditoría quedan para
+T3; sesiones y autenticación, para HU-11. Las reglas HU-08/T1 se conservan.
+
 ### Migraciones, perfiles y comprobaciones
 
 `web/src/server/profiles.ts` representa la fila de `public.profiles`. En futuros
@@ -143,7 +153,7 @@ fechas, rollback y RLS bajo roles reales. Cada prueba revierte sus datos y DDL.
 No ejecutar esta suite en un entorno compartido.
 
 `.github/workflows/ci.yml` conserva el job `check`: `npm ci`, `npm run check` y
-`npm run test:coverage`. Añade `database`, que comprueba la presencia de SQL,
+`npm run test:coverage`. Conserva también `database`, que comprueba la presencia de SQL,
 inicia Supabase con PostgreSQL 17 sobre el Docker del runner, aplica las
 migraciones y ejecuta `npm run test:db`. Detiene los servicios con `always()`.
 Los fallos se propagan; no se utiliza `continue-on-error` ni se necesitan secretos.
@@ -155,6 +165,31 @@ la rama, ni la revisión humana independiente. La migración remota se gestionar
 por separado: revisar SQL e historial, comprobar respaldo e identidades existentes,
 aplicar el archivo versionado por el procedimiento autorizado y verificar después
 RLS y asesores. No resolver diferencias mediante SQL manual fuera del historial.
+
+### Validación local de T2 (11 de noviembre de 2026)
+
+Con Node.js 24.15.0, npm 12.2.1 y Supabase CLI 3.1.0:
+
+- `npm ci`: instalación correcta; siete avisos moderados en dependencias.
+- `npm run check`: formato, ESLint, tipos y builds web/extensión superados.
+  El primer build Turbopack abortó dentro del sandbox de Windows; la ejecución
+  completa fuera de ese sandbox terminó correctamente, sin cambios al build.
+- `npm test` y `npm run test:coverage`: 54 pruebas en tres archivos; 100 % en
+  líneas (34/34), sentencias (34/34), ramas (33/33) y funciones (5/5).
+  Cuatro archivos ejecutables medidos; los tipos se eliminan al compilar.
+  Se conserva el umbral del 80 % por archivo.
+- `npm run supabase:start` y `npm exec -- supabase migration up`: instancia
+  local recuperada de sus volúmenes T1; T2 aplicada sin reset ni pérdida de datos.
+- `npm run test:db`: seis suites, 192 aserciones correctas, incluidas regresiones
+  de T1 y transición transaccional T1→T2 con SQL del historial real.
+- `npm exec -- supabase db lint --schema public,private --fail-on warning` y
+  `npm exec -- supabase db advisors --type security --fail-on error`: sin hallazgos.
+- `npm run supabase:stop`: completado conservando los volúmenes.
+
+En PowerShell se utilizó también el lanzador equivalente `npm.cmd`. La CI se
+conserva: su runner nuevo aplica T1 y T2 en orden y ejecuta todas las suites.
+Esta validación es local; no acredita una ejecución de GitHub Actions ni un
+despliegue remoto. El bloque funcional de HU-08/T1 permanece sin cambios.
 
 ### Dependencias de herramientas
 
@@ -172,7 +207,7 @@ El Sprint 1 se planificó del **9 al 22 de noviembre de 2026** con **ocho HU y 4
 
 | HU                                 | Área de trabajo prevista            | Dependencia o acuerdo inicial                                           |
 | ---------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| HU-14 — Usuarios, roles y permisos | Servidor y migraciones              | T1 implementa identidad/perfil; T2 y T3 definirán roles y permisos      |
+| HU-14 — Usuarios, roles y permisos | Servidor y migraciones              | T1 y T2 implementan perfil y roles; T3 definirá permisos                |
 | HU-11 — Acceso del colaborador     | Web, servidor y autenticación       | Resolver sesiones y acceso autorizado para habilitar HU-05              |
 | HU-05 — Crear reportes             | Interfaz, API, servidor y datos     | Definir estructura y errores de los reportes antes de consumirlos       |
 | HU-06 — Evidencias                 | Interfaz, servidor y almacenamiento | Investigar servicio, límites y control de acceso a archivos             |
