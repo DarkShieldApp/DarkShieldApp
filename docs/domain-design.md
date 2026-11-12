@@ -121,7 +121,7 @@ Consultar [arquitectura](architecture.md), [desarrollo](development.md) y
 
 **Requisito relacionado:** HU-01 — Consultar una página.
 **Origen de esta definición:** HU-01, T1 — Definir el flujo de consulta de una página web; ConOps, secciones 4, 5 y 6.
-**Estado:** Flujo funcional definido. La clave exacta de búsqueda y su implementación corresponden a las tareas posteriores de HU-01.
+**Estado:** Flujo funcional y criterio de búsqueda definidos para HU-01/T1–T2. La implementación corresponde a HU-01/T3 y T4.
 
 ### Propósito y alcance
 
@@ -137,7 +137,7 @@ El ConOps contempla dos puntos de entrada: la Plataforma Web, donde se solicita 
 4. Si hay resultados, la Plataforma Web presenta el listado con el resumen acordado para HU-01 y, cuando esté disponible, el estado de credibilidad. La Extensión Web, cuando se implemente, presenta un aviso o resumen breve y ofrece abrir la Plataforma Web para consultar más información.
 5. La persona interpreta los resultados como posibles patrones reportados, no como detecciones o validaciones concluyentes. Puede volver al listado o iniciar otra consulta.
 
-La validación y el alcance de la búsqueda (por URL, dominio u otra regla de asociación) se concretarán en HU-01/T2. El flujo no presupone una estrategia de normalización ni un límite de resultados. La extensión no debe modificar el contenido ni el funcionamiento de la página visitada.
+El criterio de búsqueda por página o dominio se especifica en HU-01/T2 a continuación. La extensión no debe modificar el contenido ni el funcionamiento de la página visitada.
 
 ### Flujos alternativos
 
@@ -151,7 +151,7 @@ La validación y el alcance de la búsqueda (por URL, dominio u otra regla de as
 ### Reglas del flujo
 
 - **HU01-FL-01 — Consulta de solo lectura.** La búsqueda no registra, edita ni elimina reportes.
-- **HU01-FL-02 — Correspondencia del resultado.** El listado contiene únicamente reportes que el servidor considere asociados a la página según el criterio que se acuerde en HU-01/T2 y el contrato de HU-05.
+- **HU01-FL-02 — Correspondencia del resultado.** El listado contiene únicamente reportes que correspondan a la página o dominio conforme al criterio de HU-01/T2 y al dato de página afectada que proporcione HU-05.
 - **HU01-FL-03 — Diferenciar vacío de error.** Una consulta completada sin coincidencias se distingue de una consulta que no pudo completarse.
 - **HU01-FL-04 — Reportes, no detecciones concluyentes.** Los resultados describen posibles _dark patterns_ comunicados mediante reportes. Una consulta, una alerta o la intervención de la IA no confirma por sí sola que el patrón exista.
 - **HU01-FL-05 — Resumen en el listado.** La Plataforma Web presenta el resumen previsto para HU-01/T6. La Extensión Web ofrece una alerta o resumen breve con acceso a la Plataforma Web para ampliar información; este canal pertenece a HU-17 y no se implementa en el Sprint 1. El detalle completo no forma parte del alcance del Sprint 1.
@@ -162,7 +162,7 @@ La validación y el alcance de la búsqueda (por URL, dominio u otra regla de as
 ### Dependencias y decisiones pendientes
 
 - **HU-05:** proporciona el modelo, el contrato y la visibilidad de los reportes que se consultarán.
-- **HU-01/T2:** debe acordar qué identifica una página y qué reportes se consideran asociados (por ejemplo, URL o dominio), además de la validación de la entrada.
+- **HU-01/T2:** define los criterios de búsqueda y el contrato de consulta en la sección siguiente.
 - **HU-01/T3 y T4:** implementan la consulta del servidor y su interfaz según este flujo.
 - **HU-01/T5:** concreta la gestión de páginas sin reportes y de errores de consulta.
 - **HU-01/T6 y T7, HU-09:** concretan el resumen y la presentación del estado de credibilidad.
@@ -171,6 +171,67 @@ La validación y el alcance de la búsqueda (por URL, dominio u otra regla de as
 - **Acceso a la consulta:** concretar qué información del reporte es pública y qué campos requieren protección. La consulta de información pública no debe depender de permisos de colaborador; la autenticación y autorización aplicables a datos restringidos se definirán con HU-11 y las reglas de seguridad.
 
 La documentación de planificación señala que los criterios originales de HU-01 mencionan entrar al detalle de un reporte, mientras que la planificación del Sprint define T6 como mostrar un resumen desde el listado y deja HU-02 fuera del Sprint. Este flujo sigue el alcance planificado para el Sprint; el criterio formal de aceptación debe confirmarse antes de cerrar HU-01.
+
+### HU-01/T2 — Diseño de consulta por página o dominio
+
+**Objetivo:** recuperar de forma explícita y de solo lectura los reportes que correspondan a una página concreta o a un dominio. La búsqueda consulta los datos almacenados en Dark-Shield; no visita ni analiza la página externa.
+
+#### Contrato de solicitud
+
+La propuesta para HU-01/T3 es un `GET /api/reports` con estos parámetros:
+
+| Parámetro | Obligatorio | Contrato |
+| --- | --- | --- |
+| `target` | Sí | URL de página para `scope=page`; URL o dominio para `scope=domain`. |
+| `scope` | Sí | `page` o `domain`. No se infiere para evitar resultados ambiguos. |
+| `limit` | No | Entero de 1 a 100; valor predeterminado 20. |
+| `cursor` | No | Cursor opaco devuelto por la página anterior para continuar el listado. |
+
+Ejemplos:
+
+```text
+GET /api/reports?scope=page&target=https%3A%2F%2Fshop.example.com%2Fpricing
+GET /api/reports?scope=domain&target=example.co.uk
+```
+
+`scope=page` requiere una URL absoluta `http` o `https`, con host válido y sin credenciales incrustadas. `scope=domain` acepta un dominio o subdominio DNS, o una URL `http`/`https` de la que se extrae el host y se obtiene el dominio registrable; también en este modo se rechazan URLs con credenciales. Otros esquemas, entradas mal formadas, direcciones IP en modo dominio y nombres que sean únicamente un sufijo público se rechazan como entrada inválida. El cliente elimina query y fragmento antes de enviar `target`; el servidor repite la normalización y validación, sin confiar en el cliente. La interpretación de URLs debe seguir el [estándar URL de WHATWG](https://url.spec.whatwg.org/), no expresiones regulares propias.
+
+#### Criterios de correspondencia
+
+- **Búsqueda por página:** se compara esquema, host, puerto efectivo y ruta. La normalización de URL hace equivalentes las mayúsculas/minúsculas del host, los nombres IDN equivalentes y los puertos por defecto. Se conserva la distinción de mayúsculas y la barra final en la ruta.
+- Los parámetros de consulta (`?`) y el fragmento (`#`) se excluyen de la clave de búsqueda y se eliminan antes de enviar la solicitud. Así, los identificadores de seguimiento o sesión no fragmentan la consulta ni se transmiten al servidor; rutas cuyo contenido dependa solo de parámetros de consulta no se distinguen en esta versión.
+- **Búsqueda por dominio:** se obtiene el dominio registrable usando la [Public Suffix List](https://publicsuffix.org/list/), incluida su sección privada, y se incluyen ese dominio y sus subdominios. La coincidencia debe respetar el límite de etiqueta: `example.com` incluye `shop.example.com`, pero no `notexample.com` ni `example.com.attacker.test`. Esquema, puerto y ruta no limitan la búsqueda por dominio.
+- Los sufijos públicos por sí solos (por ejemplo, `co.uk`) no son objetivos válidos. Las direcciones IP solo se admiten en una consulta por página y se comparan como host exacto.
+
+Ejemplos de correspondencia:
+
+| Solicitud | Clave o ámbito resultante |
+| --- | --- |
+| Página `https://shop.example.com/pricing?campaign=x#plans` | `https://shop.example.com/pricing`; no coincide con `http://shop.example.com/pricing` ni con `/pricing/`. |
+| Dominio `blog.shop.example.co.uk` | Dominio registrable `example.co.uk`; incluye sus subdominios, también `shop.example.co.uk`. |
+| Dominio `example.com` | Incluye `example.com` y `shop.example.com`; excluye `notexample.com` y `example.com.attacker.test`. |
+
+#### Respuesta y paginación
+
+Una consulta válida devuelve `200 OK` y una colección de resúmenes, sin incluir datos restringidos:
+
+```json
+{
+  "items": [],
+  "nextCursor": null
+}
+```
+
+Si no hay coincidencias, devuelve `200 OK` con `items: []` y `nextCursor: null`; el cliente lo presenta como estado vacío, no como fallo. Los resultados se ordenan por fecha de creación descendente, con identificador como desempate estable. El cursor es opaco y permite continuar sin cambiar el orden. La proyección concreta de cada resumen corresponde a HU-05 y HU-01/T6; el detalle completo queda fuera de esta consulta.
+
+Una entrada o parámetro inválido devuelve `400 Bad Request` con un código de error estable y un mensaje que permita corregir la solicitud. Errores de autenticación/autorización, límites de uso y fallos del servicio se gestionan según las reglas de acceso y errores de HU-11/HU-01/T5; nunca se convierten en una lista vacía.
+
+#### Integración y decisiones de implementación
+
+- HU-05 debe hacer consultable la página afectada por cada reporte con la clave definida aquí; la forma de persistir y derivar esa clave se resuelve al diseñar el modelo de reportes.
+- HU-01/T3 implementa la validación, búsqueda, paginación y proyección; HU-01/T4 consume el contrato desde la interfaz. La extensión seguirá este contrato cuando HU-17 entre en alcance.
+- El uso de la Public Suffix List requiere una implementación mantenida y una política para actualizar sus datos; no se debe asumir que los dos últimos componentes separados por puntos identifican siempre el dominio registrable.
+- Los límites de página ayudan a acotar respuestas, pero no sustituyen los controles contra extracción masiva previstos por el ConOps.
 
 ## Validación e invalidación de reportes
 
