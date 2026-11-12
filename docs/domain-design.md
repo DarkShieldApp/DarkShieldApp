@@ -141,12 +141,12 @@ La validación y el alcance de la búsqueda (por URL, dominio u otra regla de as
 
 ### Flujos alternativos
 
-| Situación | Comportamiento esperado |
-| --- | --- |
-| La consulta no encuentra reportes | Informar que no hay reportes asociados a la página consultada y permitir corregir la entrada o realizar otra búsqueda. No mostrarlo como un error del sistema. |
-| La entrada no se puede procesar | Explicar que no se pudo consultar esa página y permitir corregir la entrada. La regla concreta de validación se definirá en HU-01/T2. |
-| La consulta falla o el servidor no responde | Informar que no se pudo completar la consulta y permitir reintentar. No presentar el fallo como una búsqueda completada sin resultados. |
-| Hay reportes, pero la credibilidad aún no está disponible | Mostrar la información resumida disponible sin inventar ni inferir un estado de credibilidad. |
+| Situación                                                 | Comportamiento esperado                                                                                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| La consulta no encuentra reportes                         | Informar que no hay reportes asociados a la página consultada y permitir corregir la entrada o realizar otra búsqueda. No mostrarlo como un error del sistema. |
+| La entrada no se puede procesar                           | Explicar que no se pudo consultar esa página y permitir corregir la entrada. La regla concreta de validación se definirá en HU-01/T2.                          |
+| La consulta falla o el servidor no responde               | Informar que no se pudo completar la consulta y permitir reintentar. No presentar el fallo como una búsqueda completada sin resultados.                        |
+| Hay reportes, pero la credibilidad aún no está disponible | Mostrar la información resumida disponible sin inventar ni inferir un estado de credibilidad.                                                                  |
 
 ### Reglas del flujo
 
