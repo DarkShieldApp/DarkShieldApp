@@ -90,6 +90,7 @@ declaraciones `.d.ts` dentro de ese ámbito. Actualmente son:
 
 - `src/lib/supabase/config.ts`: validación y lectura diferida del entorno.
 - `src/lib/supabase/client.ts`: factoría del navegador.
+- `src/lib/evidences/rules.ts`: reglas de aceptación de evidencias (HU-06/T6).
 - `src/server/supabase.ts`: factoría del servidor.
 - `scripts/lib/auth-health.ts`: petición y clasificación del diagnóstico.
 
