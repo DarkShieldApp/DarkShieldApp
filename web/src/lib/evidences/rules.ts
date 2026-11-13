@@ -170,16 +170,18 @@ export function validateEvidenceFile(
   if (!Number.isSafeInteger(size) || size <= 0) return reject('EVIDENCE_EMPTY');
   if (size > EVIDENCE_MAX_FILE_BYTES) return reject('EVIDENCE_TOO_LARGE');
 
-  const segments = name.toLowerCase().split('.');
-  const extension = segments.length > 1 ? (segments.pop() ?? '') : '';
+  // El primer segmento es el nombre base; el último, la extensión real.
+  // Los intermedios no pueden ser extensiones conocidas (factura.pdf.exe).
+  const [, ...suffixes] = name.toLowerCase().split('.');
+  const extension = suffixes.pop() ?? '';
   const byExtension = EVIDENCE_TYPE_RULES.find((rule) =>
     rule.extensions.includes(extension),
   );
   const mimeType = candidate.type.trim().toLowerCase();
   const byMime = EVIDENCE_TYPE_RULES.find((rule) => rule.mimeType === mimeType);
-  const disguised = segments
-    .slice(1)
-    .some((segment) => DISGUISING_EXTENSIONS.has(segment));
+  const disguised = suffixes.some((suffix) =>
+    DISGUISING_EXTENSIONS.has(suffix),
+  );
 
   if (!byExtension || !byMime || disguised) {
     return reject('EVIDENCE_TYPE_NOT_ALLOWED');
